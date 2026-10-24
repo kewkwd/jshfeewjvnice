@@ -174,6 +174,12 @@ class Store:
         self._add_columns('accounts', {**warmup_columns, **scheduling_columns})
         ensure_schema(self.db)
         from . import personas as _personas
+        from . import archetypen as _archetypen
+        from .fyp import ensure_schema as _fyp_schema
+        with _atomic_schema(self.db, 'astra_schema'):
+            _personas.ensure_schema(self.db)
+            _archetypen.ensure_schema(self.db)
+            _fyp_schema(self.db)
         from .fyp import ensure_schema as _fyp_schema
         with _atomic_schema(self.db, 'astra_schema'):
             _personas.ensure_schema(self.db)
