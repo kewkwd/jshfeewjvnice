@@ -147,6 +147,13 @@ class Store:
         from .aktionen import ensure_schema
         self._add_columns('accounts', {**warmup_columns, **scheduling_columns})
         ensure_schema(self.db)
+self._add_columns('accounts', {**warmup_columns, **scheduling_columns})
+        ensure_schema(self.db)
+        from . import personas as _personas
+        from .fyp import ensure_schema as _fyp_schema
+        _personas.ensure_schema(self.db)
+        _fyp_schema(self.db)
+        self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
         self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
         self._add_columns('runs', {'accounts_used': 'TEXT'})
         if self._add_columns('targets', {'account_mode': TARGET_MODE_DDL}):
