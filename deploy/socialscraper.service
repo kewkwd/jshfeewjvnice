@@ -1,0 +1,37 @@
+# systemd-Beispiel: Socialscraper-Hintergrunddienst ohne Docker auf einem Linux-Server. UNGEPRÜFT.
+# Voraussetzungen: Python 3.11+, Google Chrome (amd64), Node.js 22+, Programm in /opt/socialscraper,
+# Python-Umgebung in /opt/socialscraper/.venv, Nutzer "socialscraper" ohne Root.
+# Einrichten (als root):
+#   cp socialscraper.service /etc/systemd/system/socialscraper.service
+#   systemctl daemon-reload
+#   systemctl enable --now socialscraper
+#   journalctl -u socialscraper -f        (Protokoll ansehen)
+[Unit]
+Description=Socialscraper Hintergrunddienst
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=socialscraper
+Group=socialscraper
+WorkingDirectory=/opt/socialscraper
+Environment=PYTHONUNBUFFERED=1
+Environment=SS_HEADLESS=true
+# Optional: Datei mit weiteren Einstellungen (Proxy usw.), Vorlage deploy/server.env.example
+EnvironmentFile=-/opt/socialscraper/deploy/server.env
+ExecStart=/opt/socialscraper/.venv/bin/python -m socialscraper daemon --root /opt/socialscraper
+Restart=on-failure
+RestartSec=30
+# Dem Dienst Zeit geben, einen laufenden Abruf und den Browser sauber zu beenden.
+TimeoutStopSec=60
+
+# Einschränkungen ohne Zusatzrechte
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/socialscraper/data
+
+[Install]
+WantedBy=multi-user.target

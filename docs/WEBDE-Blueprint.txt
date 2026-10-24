@@ -1,0 +1,103 @@
+WEB.DE – gemeinsamer Prüfablauf, 19.10.2026
+
+Ziel
+Ein einzelnes eigenes Testpostfach registrieren und anschließend den Posteingang
+über denselben Proxy tatsächlich lesen. Erst dann gilt das Postfach als fertig.
+Die Offline-Probe ist eine Ablaufprüfung, kein echter Konto- oder Mailnachweis.
+
+Einstiegsplan: beobachtete Zwischenseiten und zu prüfender Weiterweg
+google.de → Suche nach web.de → offizieller Homepage-Treffer → gegebenenfalls
+web.de/consent-management/ → Homepage → sichtbarer Tarifvergleichslink →
+produkte.web.de/premium/tarifevergleich/ → sichtbarer FreeMail-Link → register.web.de.
+Eine frühere Live-Prüfung erreichte die Produktseite; ihr Weiterweg zum
+FreeMail-Formular ist anschließend noch live zu bestätigen. In der Offline-
+Nachbildung ist dieser Weiterweg als erwarteter öffentlicher Link vorhanden.
+Der ältere Weg über web.de/email/tarifvergleich/ bleibt ebenfalls erhalten.
+Auch die beobachtete mobile Tarifübersicht unter
+produkte.web.de/premium/tarifevergleich-mobile/ gehört dazu. Query- und
+Fragmentangaben zur Herkunft ändern ihre Einordnung als Tarifübersicht nicht.
+Homepage, Datenschutzauswahl, Tarifübersicht und Formular werden am aktuellen
+Seitenzustand erkannt; eine manuell erreichte Tarifübersicht wird ebenfalls
+übernommen. Unbekannte Zwischenseiten auf den zugelassenen WEB.DE-Hosts werden
+innerhalb des Zeitlimits nur beobachtet und zur manuellen Fortsetzung gemeldet.
+Die mobile Homepage zeigt außerdem „Registrieren“ im Kopfbereich. Dieser
+sichtbare Link oder Knopf wird berücksichtigt; ein per Knopf erreichter
+Weiterweg wird erst nach dem Klick anhand der tatsächlichen Zielseite geprüft.
+Ein kostenloser direkter Registrierungslink auf der Homepage ist ebenfalls
+zulässig. Bei unbekanntem Aufbau bleibt der Auftrag innerhalb seines Zeitlimits
+für die manuelle Navigation offen; die Tarifseite kann auch manuell erreicht werden.
+Keine erfundenen Referrer, kein direkter Ersatzaufruf der Registrierungsadresse.
+Kostenpflichtige Registrierungs-/Bestelllinks werden nicht ausgewählt; keine Buchung.
+
+Formularplan und manuelle Haltepunkte
+Für echte Registrierungen berechtigt nutzbare Angaben lokal hinterlegen. Der
+Beispielgenerator ist für Offline-Nachbildungen; seine Musteranschrift ist
+nicht zustellfähig. Kein stiller Ersatz durch realistisch erfundene Identitäten.
+Unter Profile → Person und Eingabetempo lassen sich Mausgeschwindigkeit,
+Pause vor Klicks und Zeichen pro Sekunde für jedes Profil getrennt speichern.
+Vor einer neuen Registrierung müssen Name und Geschlecht hinterlegt sein.
+
+1. Vorname, Nachname und Geburtsdatum aus den lokal hinterlegten Angaben füllen.
+2. Ein echtes CAPTCHA vom Nutzer lösen lassen. Ein gelöster Bildtest ist noch
+   keine Bestätigung des Formularschritts; gegebenenfalls selbst Weiter drücken.
+3. Die gewünschte E-Mail-Adresse eintragen. Nur eine positive Verfügbarkeits-
+   meldung für genau diese Adresse erlaubt den zweiten Auswahlklick.
+4. Anschrift, Anrede und Land füllen und zurücklesen. Fehlende oder abgelehnte
+   Angaben lokal ergänzen. Die generierte Musteranschrift ist nicht zustellfähig.
+   WEB.DE zeigte zuletzt weiblich, männlich und divers. Eine lokal gespeicherte
+   Option „Keine Angabe“ ist dort nicht vorhanden; die App meldet diesen offenen
+   Schritt und erkennt eine danach manuell gesetzte angebotene Radioauswahl.
+5. Kennwort und Wiederholung füllen. Die tatsächliche Kennworteingabe wird
+   überwacht; ein manuell abweichendes Kennwort darf nicht als bekannt gelten.
+6. Vertragsbedingungen und sonstige Bestätigungen im Fenster bewusst behandeln.
+   Das Programm hält unbekannte/vertragliche Einwilligungsschritte für den Nutzer
+   an. Eine etwaige Telefonnummer/Telefonbestätigung übernimmt der Nutzer.
+7. Abschluss mit genau der gewünschten Adresse eindeutig erkennen. Erst jetzt
+   den geschützten Abschlussstand sichern, bevor das Browserfenster geschlossen wird.
+8. Posteingang über denselben Proxy anmelden, öffnen, durchsuchen und höchstens
+   eine Nachricht lesen. Ein wirklich zugänglicher leerer Eingang ist ebenfalls gültig.
+9. Geprüftes Postfach im Pool speichern. Kein Erfolgsstatus nur aufgrund eines
+   Klicks, eines geschlossenen Fensters oder einer beliebigen Providerantwort.
+
+Fehler gemeinsam untersuchen
+Ein Zeitlimit beim bekannten Cookie-Klick bedeutet nicht, dass der Klick
+wirkungslos war: Auch die folgende Navigation kann noch laufen. Die App
+beobachtet deshalb weiter und wiederholt diesen Klick nicht automatisch.
+Bleibt der Dialog sichtbar, erscheint ein Hinweis zur manuellen Prüfung.
+Ein solcher Zeitlimitfehler belegt weder eine Konto- noch eine Proxy-Sperre.
+
+Begleitete Browseraufträge aus Postfächer benutzen ein Diagnosefenster von bis
+zu fünf Minuten. Der Auftrag hält die eigene Sitzung und die Ausführungssperre
+weiter, zeigt den Fehler und wartet. Er füllt oder sendet in dieser Zeit nichts.
+Bitte nur den sichtbaren Stand prüfen und melden, keine zweite Registrierung
+parallel beginnen. Auftrag abbrechen oder Fenster schließen beendet die Prüfung;
+auch ohne Reaktion endet sie nach dem Zeitlimit. Danach muss ein möglicherweise
+manuell weitergeführter Versuch vor einer Wiederholung bewusst geprüft werden.
+
+Fehlt nur der Mailabruf nach gesichertem Kontoabschluss, wird ausschließlich
+dieses Postfach mit dem gespeicherten Proxy erneut geprüft. Weder Browserprofil
+noch Registrierung werden dafür neu gestartet. Bei sicher fehlgeschlagener
+Registrierung gilt beim nächsten freigegebenen Versuch ein neues Browserprofil.
+
+Was die vollständige Offline-Probe tut
+tests/test_webde_blueprint.py ruft mailanbieter.create auf. In einem echten
+abgeschotteten Chrome-Kontext werden Google-Einstieg, Cookie-Seite, beide
+Tarifwege und sämtliche oben nachgebildeten Formularabschnitte durchlaufen.
+Die echten Programmfunktionen füllen die DOM-Felder, lesen sie zurück, bestätigen
+die gewünschte Adresse, überwachen das Kennwort, sichern den Abschluss und
+prüfen den Mailzugang. Nur der IMAP-Transport ist ein Testadapter mit einer
+lokalen Beispielnachricht. Die produktive Mailbox- und Nachrichtenauswertung läuft.
+
+Der Browser erfüllt ausschließlich lokal bereitgestellte Testantworten; sonstige
+Anfragen werden abgebrochen. Ein toter Loopback-Proxy und die Python-Netzgrenze
+verhindern externe Direktzugriffe. Testdaten und Testeingaben ersetzen innerhalb
+der Nachbildung menschliche CAPTCHA-/Vertragsaktionen. Diese Helfer existieren
+nicht im produktiven Programm und lösen keine echten Schutzprüfungen.
+
+Praktische Grenze
+Die vereinfachten Testseiten sind kein vollständiger Klon der heutigen WEB.DE-
+Seite. Dynamische Anbieteränderungen, echte CAPTCHA-/Telefonpflichten, richtige
+Anschrift, tatsächliche Kontoannahme und IMAP-Freischaltung müssen live geprüft
+werden. Die erste echte Registrierung erfolgt deshalb gemeinsam in genau einer
+beaufsichtigten Proxy-Sitzung. Neue sichtbare Schritte werden danach als eigene
+Prüffälle ergänzt, bevor weitere Registrierungen versucht werden.

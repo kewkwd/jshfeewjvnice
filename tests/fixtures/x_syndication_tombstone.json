@@ -1,0 +1,10 @@
+{
+ "__typename": "TweetTombstone",
+ "tombstone": {
+  "text": {
+   "entities": [],
+   "rtl": false,
+   "text": "This Post is unavailable. Learn more"
+  }
+ }
+}

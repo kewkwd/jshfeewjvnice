@@ -1,0 +1,33 @@
+﻿backend = "local"
+engine = "patchright"
+headless = true
+pool_size = 4
+session_ttl = 1800
+proxy_sticky_ttl = 86400
+profiles_dir = "data/profiles"
+db_path = "data/scrape.db"
+log_level = "INFO"
+max_comments = 20
+max_retries = 3
+snapshot = true
+sphere_api_port = 40080
+
+proxies = []
+# Standard-Proxy: Benutzername wird unverÃ¤ndert verwendet.
+# proxies = ["http://user:pw@gw.provider.io:8000?country=us"]
+# Falls der Anbieter Sessionvorlagen unterstÃ¼tzt: user-session-{identity}-country-{country}
+
+ms_token = ""
+ig_session_user = ""
+ig_session_file = "ig_session"
+notify_file = "data/alerts.log"
+notify_webhook = ""
+credentials_file = "data/credentials.json"
+require_auth = false
+session_max_age = 24.0
+proxy_mode = "liste"
+
+[sphere_presets]
+tiktok = ""
+instagram = ""
+

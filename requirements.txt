@@ -1,0 +1,18 @@
+# yt-dlp ohne den Zusatz „default“: dieser zieht pycryptodomex nach, dessen unsignierte
+# Programmdateien Windows mit Smart App Control blockiert (Fehlfenster „Ungültiges Bild“).
+# YouTube braucht es nicht; yt-dlp nutzt ohne das Paket eigenen Python-Code.
+yt-dlp>=2026.8.19
+yt-dlp-ejs==0.8.0
+brotli>=1.1
+certifi
+mutagen>=1.47
+websockets>=13
+urllib3>=2
+curl_cffi>=0.10
+instaloader>=4.14
+patchright>=1.49
+playwright==1.64.0
+rebrowser-playwright>=1.49
+nodriver>=0.38
+requests>=2.32
+packaging>=24.2

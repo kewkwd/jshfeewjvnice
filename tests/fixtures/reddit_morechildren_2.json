@@ -1,0 +1,4 @@
+{"json": {"errors": [], "data": {"things": [
+  {"kind": "t1", "data": {"id": "c6", "parent_id": "t1_c5", "author": "user_f", "body": "Stimmt, beide.",
+                          "score": 1, "created_utc": 1760000800.0, "depth": 2, "replies": ""}}
+]}}}

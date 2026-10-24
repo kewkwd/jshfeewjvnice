@@ -1,0 +1,63 @@
+{
+ "__typename": "Tweet",
+ "favorite_count": 77,
+ "lang": "de",
+ "created_at": "2026-09-30T08:15:00.000Z",
+ "display_text_range": [
+  0,
+  48
+ ],
+ "entities": {
+  "hashtags": [
+   {
+    "indices": [
+     10,
+     18
+    ],
+    "text": "Beispiel"
+   }
+  ],
+  "urls": [
+   {
+    "display_url": "example.org/x",
+    "expanded_url": "https://example.org/x",
+    "indices": [
+     26,
+     48
+    ],
+    "url": "https://t.co/zzzzzzzz"
+   }
+  ],
+  "user_mentions": [
+   {
+    "id_str": "1",
+    "indices": [
+     19,
+     25
+    ],
+    "name": "Jemand",
+    "screen_name": "jemand"
+   }
+  ]
+ },
+ "id_str": "1500000000000000002",
+ "text": "Das ist #Beispiel @jemand https://t.co/zzzzzzzz",
+ "user": {
+  "id_str": "4242",
+  "name": "Beispiel Konto",
+  "screen_name": "beispiel_konto",
+  "is_blue_verified": false,
+  "profile_image_shape": "Circle"
+ },
+ "edit_control": {
+  "edit_tweet_ids": [
+   "1500000000000000002"
+  ],
+  "edits_remaining": "5",
+  "is_edit_eligible": true
+ },
+ "conversation_count": 3,
+ "news_action_type": "conversation",
+ "isEdited": false,
+ "isStaleEdit": false
+}

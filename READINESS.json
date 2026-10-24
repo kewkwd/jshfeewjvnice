@@ -1,0 +1,191 @@
+{
+  "date": "2026-10-11T00:36:35.053915+00:00",
+  "environment": {
+    "python": "3.14.7",
+    "node": "v24.19.0",
+    "packages": {
+      "yt-dlp": "2026.8.19",
+      "yt-dlp-ejs": "0.8.0",
+      "curl_cffi": "0.16.3",
+      "instaloader": "4.15.3",
+      "patchright": "1.63.0",
+      "rebrowser-playwright": "1.52.0",
+      "nodriver": "0.50.6",
+      "requests": "2.34.2",
+      "packaging": "26.3"
+    }
+  },
+  "tests": {
+    "date": "2026-10-14T00:10:19.844947+00:00",
+    "python": "3.14.7",
+    "tests_run": 1805,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3,
+    "passed": true,
+    "mode": "Offline fixtures plus actual local Chrome checks, run with -W error::ResourceWarning (13./14.10.2026 nach der Fehlersuche, siehe BUGFIXES.md); separate live results in READINESS.json",
+    "real_local_browser_tests_enabled": true,
+    "account_login_tested": false
+  },
+  "browser_checks": {
+    "patchright": {
+      "python": "3.14.7",
+      "engine": "patchright",
+      "live_accounts_used": false,
+      "checks": {
+        "yt-dlp": {
+          "version": "2026.8.19",
+          "import": true
+        },
+        "yt-dlp-ejs": {
+          "version": "0.8.0",
+          "import": true
+        },
+        "curl_cffi": {
+          "version": "0.16.3",
+          "import": true
+        },
+        "instaloader": {
+          "version": "4.15.3",
+          "import": true
+        },
+        "patchright": {
+          "version": "1.63.0",
+          "import": true
+        },
+        "rebrowser-playwright": {
+          "version": "1.52.0",
+          "import": true
+        },
+        "nodriver": {
+          "version": "0.50.6",
+          "import": true
+        },
+        "requests": {
+          "version": "2.34.2",
+          "import": true
+        }
+      },
+      "browser": {
+        "passed": true,
+        "duration_seconds": 6.83,
+        "actions": [
+          "navigate",
+          "evaluate",
+          "fill",
+          "click",
+          "cookies",
+          "mouse"
+        ]
+      },
+      "passed": true
+    },
+    "nodriver": {
+      "python": "3.14.7",
+      "engine": "nodriver",
+      "live_accounts_used": false,
+      "checks": {
+        "yt-dlp": {
+          "version": "2026.8.19",
+          "import": true
+        },
+        "yt-dlp-ejs": {
+          "version": "0.8.0",
+          "import": true
+        },
+        "curl_cffi": {
+          "version": "0.16.3",
+          "import": true
+        },
+        "instaloader": {
+          "version": "4.15.3",
+          "import": true
+        },
+        "patchright": {
+          "version": "1.63.0",
+          "import": true
+        },
+        "rebrowser-playwright": {
+          "version": "1.52.0",
+          "import": true
+        },
+        "nodriver": {
+          "version": "0.50.6",
+          "import": true
+        },
+        "requests": {
+          "version": "2.34.2",
+          "import": true
+        }
+      },
+      "browser": {
+        "passed": true,
+        "duration_seconds": 1.32,
+        "actions": [
+          "navigate",
+          "evaluate",
+          "fill",
+          "click",
+          "cookies",
+          "mouse"
+        ]
+      },
+      "passed": true
+    }
+  },
+  "windows_setup": {
+    "installation_passed": true,
+    "check_only_passed": true,
+    "launcher_check_passed": true,
+    "credentials_template_created": true
+  },
+  "public_live_scraping": {
+    "youtube": {
+      "date": "2026-10-11T00:52:38.296104+00:00",
+      "platform": "youtube",
+      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "comment_limit": 5,
+      "account_used": false,
+      "exit_code": 0,
+      "videos_saved": 1,
+      "comments_saved": 5,
+      "video_ids": [
+        "jNQXAC9IVRw"
+      ],
+      "missing_ids": 0,
+      "passed": true,
+      "comments_observed": true,
+      "duration_seconds": 4.63
+    },
+    "tiktok": {
+      "date": "2026-10-11T00:35:03.199948+00:00",
+      "platform": "tiktok",
+      "url": "https://www.tiktok.com/@katyperry/video/7630889099779493134",
+      "comment_limit": 5,
+      "account_used": false,
+      "exit_code": 0,
+      "videos_saved": 1,
+      "comments_saved": 0,
+      "video_ids": [
+        "7630889099779493134"
+      ],
+      "missing_ids": 0,
+      "passed": true,
+      "comments_observed": false,
+      "duration_seconds": 28.21,
+      "comments_verified": false,
+      "comments_status": "not_verified: CAPTCHA observed in public comment view"
+    }
+  },
+  "instagram": {
+    "status": "awaiting user login",
+    "live_scraping_tested": false
+  },
+  "account_logins_used": false,
+  "ready_for_user_login": true,
+  "remaining_steps": [
+    "Enter credentials locally or sign in manually",
+    "Complete CAPTCHA or extra confirmation if requested",
+    "Run account-backed TikTok and Instagram test URLs"
+  ]
+}

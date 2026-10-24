@@ -1,0 +1,41 @@
+[
+  {"kind": "Listing", "data": {"after": null, "children": [
+    {"kind": "t3", "data": {
+      "id": "abc123", "name": "t3_abc123", "title": "Welches Buch hat dich geprägt?",
+      "selftext": "Ich suche Tipps.\n\nDanke!", "author": "beispiel_op", "author_fullname": "t2_op1",
+      "subreddit": "AskReddit", "subreddit_name_prefixed": "r/AskReddit", "score": 1520, "ups": 1520, "upvote_ratio": 0.96,
+      "num_comments": 9, "created_utc": 1760000000.0,
+      "permalink": "/r/AskReddit/comments/abc123/welches_buch_hat_dich_gepraegt/",
+      "url": "https://www.reddit.com/r/AskReddit/comments/abc123/welches_buch_hat_dich_gepraegt/",
+      "url_overridden_by_dest": "https://example.org/artikel", "is_self": true, "over_18": false,
+      "link_flair_text": "Frage", "thumbnail": "self", "stickied": false, "locked": false, "num_crossposts": 2,
+      "crosspost_parent_list": [{"id": "orig99", "subreddit": "books", "author": "autor_x", "permalink": "/r/books/comments/orig99/titel/"}]
+    }}
+  ]}},
+  {"kind": "Listing", "data": {"after": null, "children": [
+    {"kind": "t1", "data": {
+      "id": "c1", "parent_id": "t3_abc123", "author": "user_a", "body": "Dune. Ganz klar.", "score": 300,
+      "created_utc": 1760000100.0, "distinguished": null, "stickied": false, "depth": 0,
+      "replies": {"kind": "Listing", "data": {"after": null, "children": [
+        {"kind": "t1", "data": {"id": "c1a", "parent_id": "t1_c1", "author": "beispiel_op", "body": "Danke, schreibe ich auf!",
+                                "score": 5, "created_utc": 1760000200.0, "depth": 1, "replies": ""}},
+        {"kind": "t1", "data": {"id": "c1b", "parent_id": "t1_c1", "author": "[deleted]", "body": "[deleted]",
+                                "score": 1, "created_utc": 1760000210.0, "depth": 1, "replies": ""}}
+      ]}}
+    }},
+    {"kind": "t1", "data": {
+      "id": "c2", "parent_id": "t3_abc123", "author": "[deleted]", "body": "[removed]", "score": 2,
+      "created_utc": 1760000300.0, "depth": 0,
+      "replies": {"kind": "Listing", "data": {"after": null, "children": [
+        {"kind": "t1", "data": {"id": "c2a", "parent_id": "t1_c2", "author": "user_c", "body": "Dem stimme ich zu.",
+                                "score": 7, "created_utc": 1760000400.0, "depth": 1, "replies": ""}}
+      ]}}
+    }},
+    {"kind": "t1", "data": {
+      "id": "c3", "parent_id": "t3_abc123", "author": "user_b", "body": "Der Hobbit & mehr <3", "score": 120,
+      "created_utc": 1760000500.0, "depth": 0, "replies": ""
+    }},
+    {"kind": "more", "data": {"count": 3, "name": "t1_m1", "id": "m1", "parent_id": "t3_abc123", "depth": 0,
+                              "children": ["c4", "c5", "c6"]}}
+  ]}}
+]

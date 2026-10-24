@@ -1,0 +1,40 @@
+# Socialscraper-Hintergrunddienst auf einem Server. UNGEPRÜFT (auf dem Entwicklungsrechner gab es kein Docker).
+# Starten (im Ordner deploy):
+#   cp server.env.example server.env      (dann server.env bearbeiten)
+#   mkdir -p daten && sudo chown -R 10001:10001 daten
+#   docker compose up -d --build
+# Schritt für Schritt: docs/SERVER.md
+services:
+  socialscraper:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: socialscraper:latest
+    container_name: socialscraper
+    restart: unless-stopped
+    # Beim Stoppen darf ein laufender Abruf (bis video_timeout, Standard 120 s) sauber enden, bevor Docker hart beendet.
+    stop_grace_period: 150s
+    env_file:
+      - server.env
+    environment:
+      SS_HEADLESS: "true"
+    volumes:
+      # Alle Laufzeitdaten (Datenbank, Cookies, Browserprofile, Protokolle) liegen im Ordner deploy/daten.
+      - ./daten:/data
+    # Chrome braucht mehr gemeinsamen Speicher als Docker standardmäßig gibt.
+    shm_size: "1gb"
+    # Die lokale Schnittstelle für PULSE ist absichtlich NICHT nach außen geöffnet.
+    # Wer sie von außen braucht: lieber die Cloud-Datenbank nutzen (docs/SERVER.md). Sonst hier ausnahmsweise die
+    # Weiterleitung eintragen UND in daten/integration.json api.enabled = true und api.host = "0.0.0.0" setzen – mit dem
+    # Standard 127.0.0.1 lauscht die Schnittstelle nur innerhalb des Containers, die Weiterleitung bliebe leer:
+    # ports:
+    #   - "127.0.0.1:8765:8765"
+    # Nur Chrome-relevante Sicherheitsvorgaben, keine Zusatzrechte:
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

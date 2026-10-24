@@ -1,0 +1,87 @@
+{
+  "_hinweis": "Selbst gebaute Beispielstruktur nach dem Wissen über X (GraphQL TweetDetail). NICHT gegen echtes X geprüft; alle Namen und Texte sind erfunden.",
+  "data": {"threaded_conversation_with_injections_v2": {"instructions": [
+    {"type": "TimelineClearCache"},
+    {"type": "TimelineAddEntries", "entries": [
+      {"entryId": "tweet-900", "content": {"entryType": "TimelineTimelineItem", "itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "900",
+        "core": {"user_results": {"result": {"__typename": "User", "rest_id": "11", "legacy": {"screen_name": "vorgaenger", "name": "Vorgänger"}}}},
+        "legacy": {"full_text": "Das ist der Beitrag davor.", "created_at": "Tue Oct 06 09:00:00 +0000 2026", "conversation_id_str": "900",
+                   "favorite_count": 1, "reply_count": 1, "retweet_count": 0, "quote_count": 0, "lang": "de",
+                   "entities": {"hashtags": [], "user_mentions": [], "urls": []}}
+      }}}}},
+      {"entryId": "tweet-1000", "content": {"entryType": "TimelineTimelineItem", "itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "1000",
+        "core": {"user_results": {"result": {"__typename": "User", "rest_id": "42",
+                                              "core": {"screen_name": "beispiel_konto", "name": "Beispiel Konto"}, "legacy": {}}}},
+        "views": {"count": "12345", "state": "EnabledWithCount"},
+        "note_tweet": {"is_expandable": true, "note_tweet_results": {"result": {
+          "id": "Tm90ZVR3ZWV0", "text": "Dies ist ein sehr langer Beitrag, der nicht in 280 Zeichen passt. Zweiter Satz mit #Beispiel und @vorgaenger. Mehr unter https://t.co/lang123",
+          "entity_set": {"hashtags": [{"text": "Beispiel", "indices": [80, 89]}],
+                         "user_mentions": [{"screen_name": "vorgaenger", "indices": [94, 105]}],
+                         "urls": [{"url": "https://t.co/lang123", "expanded_url": "https://example.org/lang", "indices": [118, 138]}]}}}},
+        "quoted_status_result": {"result": {"__typename": "Tweet", "rest_id": "777",
+          "core": {"user_results": {"result": {"rest_id": "77", "legacy": {"screen_name": "zitiert", "name": "Zitiert"}}}},
+          "legacy": {"full_text": "Zitierter Beitrag", "created_at": "Mon Oct 05 08:00:00 +0000 2026", "conversation_id_str": "777"}}},
+        "legacy": {
+          "full_text": "Dies ist ein sehr langer Beitrag, der nicht in 280 Zeichen passt… https://t.co/kurz",
+          "display_text_range": [0, 66], "created_at": "Wed Oct 07 12:30:15 +0000 2026", "lang": "de",
+          "conversation_id_str": "900", "in_reply_to_status_id_str": "900", "in_reply_to_user_id_str": "11",
+          "favorite_count": 250, "reply_count": 6, "retweet_count": 30, "quote_count": 4, "bookmark_count": 12,
+          "is_quote_status": true,
+          "entities": {"hashtags": [{"text": "Beispiel"}], "user_mentions": [{"screen_name": "vorgaenger"}],
+                       "urls": [], "media": [{"url": "https://t.co/kurz", "expanded_url": "https://x.com/beispiel_konto/status/1000/photo/1", "type": "photo"}]},
+          "extended_entities": {"media": [
+            {"type": "photo", "media_url_https": "https://pbs.twimg.com/media/beispiel1.jpg", "url": "https://t.co/kurz"},
+            {"type": "video", "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/beispiel2.jpg", "url": "https://t.co/kurz",
+             "video_info": {"duration_millis": 15500, "variants": []}}]}
+        }
+      }}}}},
+      {"entryId": "conversationthread-1001", "content": {"entryType": "TimelineTimelineModule", "items": [
+        {"entryId": "conversationthread-1001-tweet-1001", "item": {"itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+          "__typename": "TweetWithVisibilityResults", "limitedActionResults": {"limited_actions": []},
+          "tweet": {"__typename": "Tweet", "rest_id": "1001",
+            "core": {"user_results": {"result": {"rest_id": "51", "legacy": {"screen_name": "antwort_eins", "name": "Antwort Eins"}}}},
+            "legacy": {"full_text": "@beispiel_konto Erste Antwort https://t.co/abc", "display_text_range": [16, 29], "created_at": "Wed Oct 07 12:35:00 +0000 2026",
+                       "conversation_id_str": "900", "in_reply_to_status_id_str": "1000", "favorite_count": 9, "reply_count": 1,
+                       "retweet_count": 0, "quote_count": 0, "lang": "de",
+                       "entities": {"hashtags": [], "user_mentions": [{"screen_name": "beispiel_konto"}],
+                                    "urls": [{"url": "https://t.co/abc", "expanded_url": "https://example.org/a"}]}}}
+        }}}}},
+        {"entryId": "conversationthread-1001-tweet-1002", "item": {"itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+          "__typename": "Tweet", "rest_id": "1002",
+          "core": {"user_results": {"result": {"rest_id": "52", "legacy": {"screen_name": "antwort_zwei", "name": "Antwort Zwei"}}}},
+          "legacy": {"full_text": "@antwort_eins Verschachtelte Antwort", "display_text_range": [14, 36], "created_at": "Wed Oct 07 12:40:00 +0000 2026",
+                     "conversation_id_str": "900", "in_reply_to_status_id_str": "1001", "favorite_count": 2, "reply_count": 0,
+                     "retweet_count": 0, "quote_count": 0, "lang": "de", "entities": {}}
+        }}}}},
+        {"entryId": "conversationthread-1001-tweet-1003", "item": {"itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+          "__typename": "Tweet", "rest_id": "1003",
+          "core": {"user_results": {"result": {"rest_id": "42", "core": {"screen_name": "Beispiel_Konto", "name": "Beispiel Konto"}}}},
+          "legacy": {"full_text": "@antwort_zwei Antwort der Autorin selbst", "display_text_range": [14, 40], "created_at": "Wed Oct 07 12:45:00 +0000 2026",
+                     "conversation_id_str": "900", "in_reply_to_status_id_str": "1002", "favorite_count": 4, "reply_count": 0,
+                     "retweet_count": 0, "quote_count": 0, "lang": "de", "entities": {}}
+        }}}}},
+        {"entryId": "cursor-showmorethreadsprompt-1", "item": {"itemContent": {"itemType": "TimelineTimelineCursor", "cursorType": "ShowMore", "value": "cursor-1"}}}
+      ]}},
+      {"entryId": "tweet-1004", "content": {"entryType": "TimelineTimelineItem", "itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "1004",
+        "core": {"user_results": {"result": {"rest_id": "54", "legacy": {"screen_name": "antwort_vier", "name": "Antwort Vier"}}}},
+        "legacy": {"full_text": "Ohne führende Namen, aber mit #Tag", "created_at": "Wed Oct 07 13:00:00 +0000 2026",
+                   "conversation_id_str": "900", "in_reply_to_status_id_str": "1000", "favorite_count": 0, "reply_count": 0,
+                   "retweet_count": 0, "quote_count": 0, "lang": "de", "entities": {"hashtags": [{"text": "Tag"}]}}
+      }}}}},
+      {"entryId": "tweet-1005-leer", "content": {"entryType": "TimelineTimelineItem", "itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+        "__typename": "TweetTombstone", "tombstone": {"text": {"text": "Dieser Beitrag ist nicht verfügbar."}}}}}}},
+      {"entryId": "TimelineTimelineModule-empfehlungen", "content": {"entryType": "TimelineTimelineModule", "items": [
+        {"item": {"itemContent": {"itemType": "TimelineTweet", "tweet_results": {"result": {
+          "__typename": "Tweet", "rest_id": "5000",
+          "core": {"user_results": {"result": {"rest_id": "99", "legacy": {"screen_name": "fremd", "name": "Fremd"}}}},
+          "legacy": {"full_text": "Empfohlener Beitrag aus einer anderen Unterhaltung", "created_at": "Wed Oct 07 14:00:00 +0000 2026",
+                     "conversation_id_str": "5000", "favorite_count": 1000, "reply_count": 0, "retweet_count": 0, "quote_count": 0, "lang": "de"}
+        }}}}}
+      ]}},
+      {"entryId": "cursor-bottom-1", "content": {"entryType": "TimelineTimelineCursor", "itemContent": {"itemType": "TimelineTimelineCursor", "cursorType": "Bottom", "value": "cursor-2"}}}
+    ]}
+  ]}}
+}

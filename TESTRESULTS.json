@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-14T00:10:19.844947+00:00",
+  "python": "3.14.7",
+  "tests_run": 1805,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 3,
+  "passed": true,
+  "mode": "Offline fixtures plus actual local Chrome checks, run with -W error::ResourceWarning (13./14.10.2026 nach der Fehlersuche, siehe BUGFIXES.md); separate live results in READINESS.json",
+  "real_local_browser_tests_enabled": true,
+  "account_login_tested": false,
+  "gui_tests_included": true,
+  "passed_count": 1802
+}

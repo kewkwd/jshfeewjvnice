@@ -1,0 +1,22 @@
+{
+  "_hinweis": "Zweite Seite der Antworten (Beispielstruktur, NICHT gegen echtes X geprüft): enthält 1004 noch einmal und zwei neue Antworten.",
+  "data": {"threaded_conversation_with_injections_v2": {"instructions": [
+    {"type": "TimelineAddEntries", "entries": [
+      {"entryId": "tweet-1004", "content": {"itemContent": {"tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "1004",
+        "core": {"user_results": {"result": {"rest_id": "54", "legacy": {"screen_name": "antwort_vier", "name": "Antwort Vier"}}}},
+        "legacy": {"full_text": "Ohne führende Namen, aber mit #Tag", "created_at": "Wed Oct 07 13:00:00 +0000 2026",
+                   "conversation_id_str": "900", "in_reply_to_status_id_str": "1000"}}}}}},
+      {"entryId": "tweet-1006", "content": {"itemContent": {"tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "1006",
+        "core": {"user_results": {"result": {"rest_id": "56", "legacy": {"screen_name": "antwort_sechs", "name": "Antwort Sechs"}}}},
+        "legacy": {"full_text": "Noch eine Antwort", "created_at": "Wed Oct 07 13:30:00 +0000 2026",
+                   "conversation_id_str": "900", "in_reply_to_status_id_str": "1000", "favorite_count": 3}}}}}},
+      {"entryId": "tweet-1007", "content": {"itemContent": {"tweet_results": {"result": {
+        "__typename": "Tweet", "rest_id": "1007",
+        "core": {"user_results": {"result": {"rest_id": "57", "legacy": {"screen_name": "antwort_sieben", "name": "Antwort Sieben"}}}},
+        "legacy": {"full_text": "Und die letzte", "created_at": "Wed Oct 07 13:40:00 +0000 2026",
+                   "conversation_id_str": "900", "in_reply_to_status_id_str": "1000", "favorite_count": 1}}}}}}
+    ]}
+  ]}}
+}

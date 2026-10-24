@@ -1,0 +1,116 @@
+{
+ "__typename": "Tweet",
+ "favorite_count": 1234,
+ "lang": "en",
+ "possibly_sensitive": false,
+ "created_at": "2012-11-07T04:16:18.000Z",
+ "display_text_range": [
+  0,
+  22
+ ],
+ "entities": {
+  "media": [
+   {
+    "display_url": "pic.x.com/abcdefgh",
+    "expanded_url": "https://x.com/beispiel_konto/status/1500000000000000001/photo/1",
+    "indices": [
+     17,
+     37
+    ],
+    "url": "http://t.co/abcdefgh"
+   }
+  ]
+ },
+ "id_str": "1500000000000000001",
+ "text": "Beispieltext mit Bild. http://t.co/abcdefgh",
+ "user": {
+  "id_str": "4242",
+  "name": "Beispiel Konto",
+  "screen_name": "beispiel_konto",
+  "is_blue_verified": true,
+  "profile_image_shape": "Circle",
+  "verified": false,
+  "profile_image_url_https": "https://pbs.twimg.com/profile_images/1/beispiel_normal.jpg",
+  "highlighted_label": {
+   "badge": {
+    "url": "https://pbs.twimg.com/profile_images/2/beispiel_bigger.jpg"
+   },
+   "description": "Beispielbüro",
+   "url": {
+    "url": "https://twitter.com/beispielbuero",
+    "url_type": "DeepLink"
+   },
+   "user_label_display_type": "Badge",
+   "user_label_type": "BusinessLabel"
+  }
+ },
+ "edit_control": {
+  "edit_tweet_ids": [
+   "1500000000000000001"
+  ],
+  "editable_until_msecs": "1352263577756",
+  "edits_remaining": "5",
+  "is_edit_eligible": true
+ },
+ "mediaDetails": [
+  {
+   "display_url": "pic.x.com/abcdefgh",
+   "expanded_url": "https://x.com/beispiel_konto/status/1500000000000000001/photo/1",
+   "ext_media_availability": {
+    "status": "Available"
+   },
+   "indices": [
+    17,
+    37
+   ],
+   "media_url_https": "https://pbs.twimg.com/media/beispielbild.jpg",
+   "original_info": {
+    "focus_rects": [],
+    "height": 532,
+    "width": 800
+   },
+   "sizes": {
+    "large": {
+     "h": 532,
+     "resize": "fit",
+     "w": 800
+    },
+    "medium": {
+     "h": 532,
+     "resize": "fit",
+     "w": 800
+    },
+    "small": {
+     "h": 452,
+     "resize": "fit",
+     "w": 680
+    },
+    "thumb": {
+     "h": 150,
+     "resize": "crop",
+     "w": 150
+    }
+   },
+   "type": "photo",
+   "url": "http://t.co/abcdefgh"
+  }
+ ],
+ "photos": [
+  {
+   "backgroundColor": {
+    "red": 204,
+    "green": 214,
+    "blue": 221
+   },
+   "cropCandidates": [],
+   "expandedUrl": "https://x.com/beispiel_konto/status/1500000000000000001/photo/1",
+   "url": "https://pbs.twimg.com/media/beispielbild.jpg",
+   "width": 800,
+   "height": 532
+  }
+ ],
+ "conversation_count": 56,
+ "news_action_type": "conversation",
+ "isEdited": false,
+ "isStaleEdit": false
+}

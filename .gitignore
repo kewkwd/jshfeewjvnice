@@ -1,0 +1,38 @@
+.venv/
+__pycache__/
+*.py[cod]
+data/
+credentials*.json
+!credentials.example.json
+cookies*.json
+*.db
+*.db-shm
+*.db-wal
+*.exe
+tools/tor/
+ai.json
+integration.json
+*.key
+*.pem
+.env
+settings.toml.bak
+*.bak
+
+# Grosse Fremdprogramme (Android-SDK, Tor) und echte Zugangsdaten
+tools/
+registration_attempts.json
+registration_failures.json
+
+
+# Lokale Konfiguration mit Proxy-Zugang und interne Pruefberichte
+settings.toml
+Profilwerk-*.txt
+Profilwerk-*.json
+# Medien und Mitschnitte
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.har
+*.log
+
