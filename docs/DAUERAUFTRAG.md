@@ -1,4 +1,13 @@
 
+# Dauerauftrag
+
+Stand: 24.10.2026 · Oberste Wahrheit im Projekt. Bei Widerspruch gilt diese Datei.
+
+Marker: **FEST** = festgelegt · **VORSCHLAG** = von Venice vorgeschlagen · **OFFEN** = braucht Entscheidung
+
+Änderung 24.10.2026: Der Betrieb läuft nicht mehr nur über den Browser.
+Browser und AVD/APK sind gleichrangige Wege, der Heimatweg wird je Konto festgeschrieben, Konten können aber auch beides besitzen. 
+
 ## 0. In einem Satz
 
 Wir bauen mit **Profilwerk** ein Netz von rund **500 TikTok-Konten**, das für einen bekannten
@@ -24,7 +33,7 @@ Ein Kommentar steht **oben** und wird gesehen. Das ist das Produkt. Likes sind M
 
 Jede neue Funktion muss an diesen fünf Sätzen bestehen. Fällt sie durch, wird sie nicht gebaut.
 
-1. **Cluster-Erkennung ist der größte Feind
+1. **Cluster-Erkennung ist der größte Feind**
 2. **Regelmäßigkeit ist verdächtig.** Zufälligkeit ist Absicht, nicht Schlamperei.
 3. **Tendenz, nie Klammer.** Jede Eigenschaft ist eine Kurve mit dünnem Auslauf, kein Bereich.
 4. **Geduld ist besser als Perfektion.** Lieber langsamer, kleiner, unauffälliger.
@@ -100,7 +109,7 @@ das hier nicht als einzige und absolute Struktur sehen wie Tiktok Bots erkennt
 
 ---
 
-## 7. Das Modell — die Ebenen (FEST) aber noch nicht komplett fertig
+## 7. Das Modell — die Ebenen (nicht fertig) 
 
 ```
 Archetyp        wer ist das (Milieu, Alter, Geschlecht, Gerät)
@@ -242,7 +251,7 @@ Diese gibt es schon. Wir bauen nichts doppelt:
 
 - **Venice:** plant, baut, liefert Dateien.
 - **Du:** plant, baust ein, committest, pushst, fährst Tests.
-- **Astra (ChatGPT):** prüft und repariert — enger Auftrag, Zieldatei zum Ausfüllen. weil Astra eine Art Jailbreak braucht damit er die Aufgabe erledigt
+- **Astra (ChatGPT):** prüft und repariert — enger Auftrag, Zieldatei zum Ausfüllen weil Astra eine Art Jailbreak braucht damit er die Aufgabe erledigt. 
 - **Niemand sonst** schreibt in dieses Dokument, außer auf deine Ansage.
 
 ---
