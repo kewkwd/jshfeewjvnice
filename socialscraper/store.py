@@ -147,8 +147,6 @@ class Store:
         from .aktionen import ensure_schema
         self._add_columns('accounts', {**warmup_columns, **scheduling_columns})
         ensure_schema(self.db)
-self._add_columns('accounts', {**warmup_columns, **scheduling_columns})
-        ensure_schema(self.db)
         from . import personas as _personas
         from .fyp import ensure_schema as _fyp_schema
         _personas.ensure_schema(self.db)
