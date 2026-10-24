@@ -61,8 +61,13 @@ class IdentityManager:
         self.settings_profiles = pathlib.Path(profiles_dir) if profiles_dir is not None else BASE.parent / 'profiles'
 
     def _with_settings(self, identity):
-        from ..profile_settings import load
-        identity.settings = load(self.settings_profiles, identity.name)
+        from ..profile_settings import load, tempo_ziehen
+        settings = load(self.settings_profiles, identity.name)
+        # Der gespeicherte Wert ist die Mitte, `streuung` sind die Rails. Jeder Ladevorgang
+        # zieht einen eigenen Wert: kein Konto läuft zweimal gleich schnell, und die
+        # Grenzwerte werden praktisch nie genau erreicht.
+        settings['tempo'] = tempo_ziehen(settings)
+        identity.settings = settings
         return identity
 
     def stored(self, name):

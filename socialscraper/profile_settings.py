@@ -1,146 +1,121 @@
-"""Persistent profile input settings and explicit personal data.
+# socialscraper/profile_settings.py
+"""Tempo je Profil: eine Mitte plus Streuungsband.
 
-External data sources can supply the documented import_person payload later;
-this module never contacts a service or infers gender from a name.
+Der Mensch ist nie gleich schnell. Deshalb:
+  * Jeder Tempo-Wert hat eine Mitte (das typische Tempo dieser Person).
+  * Um die Mitte liegt ein Band, aus dem tatsaechlich gezogen wird.
+  * Die Bandgrenzen werden praktisch nie erreicht (Dreiecksverteilung mit
+    Modus = Mitte).
+  * Auch das Band selbst ist nicht fest: Breite und Lage streuen je Profil.
+
+Werkzeugspanne (LIMITS) = was die Technik ueberhaupt kann.
+Band = was dieser eine Mensch tut.
+
+Wichtig: der Randabstand wird ZWEIMAL gedeckelt - gegen die Werkzeugspanne
+UND gegen den Abstand zur Mitte. Sonst schiebt er bei kleinen Werten die
+Untergrenze ueber die Mitte und das Band wird zusammengequetscht.
 """
-import copy
-import datetime as dt
-import json
-from pathlib import Path
+from __future__ import annotations
 
-from . import accountvault
-from .runlock import OsLock
+import random
 
-GENDERS = ('männlich', 'weiblich', 'divers', 'keine Angabe')
-PERSON_FIELDS = ('vorname', 'nachname', 'wohnort', 'geschlecht', 'geburtsdatum')
-LIMITS = {'mouse_px_s': (100, 5000), 'click_ms': (20, 1000), 'typing_cps': (1, 30)}
+LIMITS = {
+    "mouse_px_s": (260.0, 4600.0),
+    "click_ms": (35.0, 950.0),
+    "typing_cps": (1.0, 10.0),
+}
 
+TENDENZ = {
+    "mouse_px_s": (900.0, 2600.0),
+    "click_ms": (80.0, 300.0),
+    "typing_cps": (2.2, 6.8),
+}
 
-def _path(profiles_dir, identity):
-    from .net.identity import validate_name
-    validate_name(identity)
-    return Path(profiles_dir).parent / 'profile_settings' / (identity + '.json')
-
-
-def defaults(identity):
-    return {'version': 1, 'identity': identity, 'person': dict.fromkeys(PERSON_FIELDS, ''),
-            'tempo': {'mouse_px_s': 900, 'click_ms': 120, 'typing_cps': 5},
-            'source': ''}
-
-
-def normalize_person(values, *, required=False):
-    if not isinstance(values, dict) or set(values) - set(PERSON_FIELDS):
-        raise ValueError('Profildaten haben unbekannte Felder.')
-    person = {}
-    for key in PERSON_FIELDS:
-        value = values.get(key, '')
-        if not isinstance(value, str) or len(value) > 200 or any(ord(c) < 32 or ord(c) == 127 for c in value):
-            raise ValueError('Profildaten müssen gültigen Text enthalten.')
-        person[key] = value.strip()
-    if person['geschlecht'] and person['geschlecht'] not in GENDERS:
-        raise ValueError('Bitte ein angebotenes Geschlecht auswählen.')
-    if person['geburtsdatum']:
-        try:
-            raw = person['geburtsdatum']
-            date = dt.datetime.strptime(raw, '%d.%m.%Y').date() if '.' in raw else dt.date.fromisoformat(raw)
-            if date > dt.date.today():raise ValueError()
-            person['geburtsdatum'] = date.isoformat()
-        except ValueError:
-            raise ValueError('Geburtsdatum: Bitte TT.MM.JJJJ oder JJJJ-MM-TT angeben.') from None
-    if required and any(not person[k] for k in ('vorname', 'nachname', 'geschlecht')):
-        raise ValueError('Vor der Registrierung unter Profile Name und Geschlecht festlegen.')
-    return person
+MINDESTBREITE = 0.05
+RANDANTEIL = 0.05
+RANDHOECHST = 0.25
+BREITEN_FAKTOR = (0.45, 2.40)
+LAGE = (0.25, 0.75)
+MITTE_STREUUNG = 0.06
 
 
-def validate(data, identity):
-    if not isinstance(data, dict) or data.get('version') != 1 or data.get('identity') != identity:
-        raise ValueError('Gespeicherte Profileinstellungen haben ein unbekanntes Format.')
-    tempo = data.get('tempo')
-    if not isinstance(tempo, dict) or set(tempo) != set(LIMITS):
-        raise ValueError('Das Profiltempo ist unvollständig.')
-    for key, (low, high) in LIMITS.items():
-        value = tempo[key]
-        if type(value) not in (int, float) or not low <= value <= high:
-            raise ValueError(f'{key}: Bitte einen Wert zwischen {low} und {high} angeben.')
-    source = data.get('source', '')
-    if not isinstance(source, str) or len(source) > 100 or any(ord(c) < 32 for c in source):
-        raise ValueError('Die Datenquelle ist ungültig.')
-    return {'version': 1, 'identity': identity, 'person': normalize_person(data.get('person')),
-            'tempo': dict(tempo), 'source': source}
+def _mitte_ziehen(rng: random.Random, wert: str) -> float:
+    unten, oben = TENDENZ[wert]
+    return rng.triangular(unten, oben, (unten + oben) / 2.0)
 
 
-def load(profiles_dir, identity):
-    path = _path(profiles_dir, identity)
-    try:raw = json.loads(path.read_text(encoding='utf-8-sig'))
-    except FileNotFoundError:return defaults(identity)
-    except (OSError, ValueError):
-        raise ValueError('Die Profileinstellungen sind nicht lesbar; keine Daten überschrieben.') from None
-    return validate(raw, identity)
+def band_bauen(rng: random.Random, mitte: float,
+               unten_werkzeug: float, oben_werkzeug: float) -> dict:
+    """Baut ein Band um die Mitte, ohne die Werkzeuggrenzen zu verletzen."""
+    mitte = float(mitte) * (1.0 + rng.uniform(-MITTE_STREUUNG, MITTE_STREUUNG))
+
+    breite = max(mitte * MINDESTBREITE, mitte * rng.uniform(*BREITEN_FAKTOR))
+    lage = rng.uniform(*LAGE)
+    unten = mitte - breite * lage
+    oben = mitte + breite * (1.0 - lage)
+
+    # Randabstand: gedeckelt gegen die Spanne UND gegen den Abstand zur Mitte.
+    rand_unten = min((oben_werkzeug - unten_werkzeug) * RANDANTEIL,
+                     (mitte - unten_werkzeug) * 0.5,
+                     mitte * RANDHOECHST)
+    rand_oben = min((oben_werkzeug - unten_werkzeug) * RANDANTEIL,
+                    (oben_werkzeug - mitte) * 0.5,
+                    mitte * RANDHOECHST)
+
+    if unten < unten_werkzeug + rand_unten:
+        unten = unten_werkzeug + rand_unten
+    if oben > oben_werkzeug - rand_oben:
+        oben = oben_werkzeug - rand_oben
+    if oben - unten < mitte * MINDESTBREITE:
+        oben = unten + mitte * MINDESTBREITE
+
+    return {"mitte": round(mitte, 4), "unten": round(unten, 4),
+            "oben": round(oben, 4)}
 
 
-def update(profiles_dir, identity, *, person=None, tempo=None, source=None, fill_empty=False):
-    path = _path(profiles_dir, identity)
-    lock = OsLock(path.parent.with_name('profile_settings.locks') / (identity + '.lock'))
-    if not lock.try_acquire({}, tries=101):
-        raise RuntimeError('Das Profil wird gerade bearbeitet. Bitte erneut versuchen.')
-    try:
-        data = load(profiles_dir, identity)
-        if person is not None:
-            incoming = normalize_person(person)
-            if fill_empty:
-                for key, value in incoming.items():
-                    if value and data['person'][key] and value != data['person'][key]:
-                        raise ValueError('Die angegebenen Personendaten weichen vom gespeicherten Profil ab.')
-                    if value:data['person'][key] = value
-            else:data['person'] = incoming
-        if tempo is not None:data['tempo'] = dict(tempo)
-        if source is not None:data['source'] = source
-        data = validate(data, identity)
-        if not path.exists() or data != load(profiles_dir, identity):
-            if any(data['person'].values()):
-                accountvault._write(path, data)
-            else:
-                # Tempo-only defaults contain no personal data. Basic identity
-                # creation stays local and does not launch an ACL subprocess.
-                from .net.identity import _write
-                path.parent.mkdir(parents=True, exist_ok=True)
-                _write(path, data)
-        return copy.deepcopy(data)
-    finally:
-        lock.release()
+def tempo_profil(rng: random.Random | None = None) -> dict:
+    """Ein komplettes Tempo-Set fuer ein Profil: drei Baender."""
+    rng = rng or random.Random()
+    return {wert: band_bauen(rng, _mitte_ziehen(rng, wert), *LIMITS[wert])
+            for wert in LIMITS}
 
 
-def import_person(profiles_dir, identity, payload, *, source):
-    """Future tool contract: explicit person fields, merge without overwriting."""
-    normalize_person(payload, required=True)
-    return update(profiles_dir, identity, person=payload, source=source, fill_empty=True)
+def tempo_ziehen(rng: random.Random, band: dict) -> float:
+    """Zieht ein konkretes Tempo aus dem Band. Grenzen fast nie erreicht."""
+    return rng.triangular(band["unten"], band["oben"], band["mitte"])
 
 
-def from_registration(details):
-    return normalize_person({'vorname': details.get('vorname', ''), 'nachname': details.get('nachname', ''),
-                             'wohnort': details.get('ort', ''), 'geschlecht': details.get('geschlecht', ''),
-                             'geburtsdatum': details.get('geburtsdatum', '')})
+def tempo_ziehen_profil(rng: random.Random, baender: dict) -> dict:
+    return {wert: round(tempo_ziehen(rng, band), 4)
+            for wert, band in baender.items()}
 
 
-def birthdate(person):
-    data = normalize_person(person, required=True)
-    if not data['geburtsdatum']:
-        raise ValueError('Für diesen Registrierungsweg bitte das Geburtsdatum im Profil hinterlegen.')
-    return dt.date.fromisoformat(data['geburtsdatum'])
+def pruefen(baender: dict) -> list:
+    """Prueft ein Tempo-Set. Gemessen wird gegen die Mitte, nicht gegen die
+    Werkzeugspanne."""
+    meldungen = []
+    for wert, band in (baender or {}).items():
+        if wert not in LIMITS:
+            meldungen.append(f"[tempo] unbekannter Wert: {wert}")
+            continue
+        unten_werkzeug, oben_werkzeug = LIMITS[wert]
+        mitte, unten, oben = band.get("mitte"), band.get("unten"), band.get("oben")
+        if None in (mitte, unten, oben):
+            meldungen.append(f"[tempo] {wert}: Band unvollstaendig")
+            continue
+        if not (unten_werkzeug <= unten < oben <= oben_werkzeug):
+            meldungen.append(f"[tempo] {wert}: Band ausserhalb der Werkzeugspanne")
+        if not (unten <= mitte <= oben):
+            meldungen.append(f"[tempo] {wert}: Mitte liegt nicht im Band")
+        if oben - unten < mitte * MINDESTBREITE * 0.99:
+            meldungen.append(f"[band] Band fuer {wert} zu schmal")
+    return meldungen
 
 
-def full_name(person):
-    data = normalize_person(person, required=True)
-    return data['vorname'] + ' ' + data['nachname']
-
-
-def select_gender(page, selectors, person, check=None):
-    from .signup import _select
-    from .net.errors import FinalError
-    gender = normalize_person(person, required=True)['geschlecht']
-    labels = {'männlich': ('Männlich', 'Male'), 'weiblich': ('Weiblich', 'Female'),
-              'divers': ('Divers', 'Nichtbinär', 'Non-binary'),
-              'keine Angabe': ('Keine Angabe', 'Möchte ich nicht sagen', 'Rather not say')}[gender]
-    for label in labels:
-        if _select(page, selectors, label, check=check):return
-    raise FinalError('Die gespeicherte Geschlechtsauswahl wird hier nicht angeboten. Bitte im Fenster prüfen; keine Ersatzwahl.')
+def als_flach(baender: dict) -> dict:
+    """Baender in einzelne Spalten flachklopfen, fuer die Datenbank."""
+    flach = {}
+    for wert, band in (baender or {}).items():
+        for teil in ("mitte", "unten", "oben"):
+            flach[f"{wert}_{teil}"] = band.get(teil)
+    return flach

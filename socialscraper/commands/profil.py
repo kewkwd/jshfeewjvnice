@@ -1,5 +1,5 @@
 """Kommandozeile für den Datengenerator: Profile erzeugen, prüfen, anzeigen."""
-from .. import accountvault, profilgenerator
+from .. import accountvault, profile_settings, profilgenerator
 from ..store import Store
 
 NAME, HELP = 'profil', 'Bot-Profile erzeugen (Person, Adresse, E-Mail, Passwort, Tempo)'
@@ -31,14 +31,21 @@ def add_arguments(p):
     was.add_parser('pruefen')
 
 
+def _tempo_zeile(tempo, streuung):
+    teile = []
+    for name, einheit in (('mouse_px_s', 'px/s'), ('click_ms', 'ms'), ('typing_cps', 'Zeichen/s')):
+        von, bis = streuung[name]
+        teile.append(f"{name.replace('_', ' ')} {tempo[name]} (Band {von:g}-{bis:g}) {einheit}")
+    print('  Tempo: ' + ' · '.join(teile), flush=True)
+
+
 def _drucken(profil):
     a = profil['anschrift']
     print(f"{profil['identity']}  ({profil['archetyp']}, {profil['alter']} J., {profil['verhalten']})", flush=True)
     print(f"  {profil['vorname']} {profil['nachname']} · {profil['geschlecht']} · geb. {profil['geburt']}", flush=True)
     print(f"  {a['strasse']} {a['hausnummer']}, {a['plz']} {a['ort']}, {a['land']}", flush=True)
     print(f"  {profil['adresse']}", flush=True)
-    t = profil['tempo']
-    print(f"  Tempo: Maus {t['mouse_px_s']} px/s · Klick {t['click_ms']} ms · Tippen {t['typing_cps']} Zeichen/s", flush=True)
+    _tempo_zeile(profil['tempo'], profil['streuung'])
     print(f"  Quelle {profil['quelle']} · {profil.get('schreibweise', '')}", flush=True)
 
 
@@ -52,24 +59,22 @@ def run(args, cfg):
         return 0
 
     if args.was == 'zeigen':
+        from .. import repo
         with Store(cfg.db_path) as store:
-            from .. import repo
             konto = next((k for k in repo.list_accounts(store.db, 'tiktok')
                           if k['identity'] == args.identity), None)
         if konto is None:
             print(f'Kein Konto mit der Kennung {args.identity}.', flush=True)
             return 1
-        from .. import profile_settings
         daten = profile_settings.load(cfg.profiles_dir, args.identity)
         geheim = accountvault.get(cfg.db_path, args.identity)
         person = daten['person']
-        print(f"{args.identity}  ({konto.get('archetyp') or '-'}, {konto.get('alter')} J., {konto.get('verhalten_typ')})", flush=True)
+        print(f"{args.identity}  (Alter {konto.get('alter')}, {konto.get('verhalten_typ')})", flush=True)
         print(f"  {person['vorname']} {person['nachname']} · {person['geschlecht']} · "
               f"geb. {person['geburtsdatum']} · {person['wohnort']}", flush=True)
         print(f"  {geheim.get('email') or '(keine E-Mail)'} · "
               f"Passwort {'gesetzt' if geheim.get('passwort') else 'fehlt'}", flush=True)
-        t = daten['tempo']
-        print(f"  Tempo: Maus {t['mouse_px_s']} px/s · Klick {t['click_ms']} ms · Tippen {t['typing_cps']} Zeichen/s", flush=True)
+        _tempo_zeile(daten['tempo'], daten['streuung'])
         return 0
 
     try:
