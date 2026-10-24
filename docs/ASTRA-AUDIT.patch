@@ -1,0 +1,1117 @@
+diff --git a/checks/watchtime_check.py b/checks/watchtime_check.py
+index 83eb6e9..c94774b 100644
+--- a/checks/watchtime_check.py
++++ b/checks/watchtime_check.py
+@@ -1,4 +1,4 @@
+-"""Prüft, ob TikTok-Web im Browser Watch-Time registriert (kritische Annahme für FYP-Konsum).
++"""Prüft Video-Fortschritt und begleitende Telemetrie im TikTok-Webbrowser.
+ 
+ Aufruf:  python -m checks.watchtime_check [--url URL] [--konto ID] [--sekunden 6]
+ Verdikt je Modus: BESTANDEN / TEILWEISE / FEHLGESCHLAGEN.
+@@ -15,14 +15,18 @@ TELEMETRIE = ('mon.tiktokv.com', 'mssdk.bytedance.com', 'log.tiktokv.com', 'slar
+ 
+ def _lauf(cfg, konto, url, sekunden, headless):
+     im, backend, sessions = cli.make_runtime(cfg, True)
+-    identity = konto['identity'] if konto else 'watchtime_check'
+-    country = (konto or {}).get('country') or 'de'
+-    ident = im.get(identity, country, False)
+     treffer, fortschritt = [], -1.0
+     try:
++        identity = konto['identity'] if konto else 'watchtime_check'
++        country, mobile = im.stored(identity)
++        ident = im.get(identity, country or (konto or {}).get('country') or 'de', bool(mobile))
+         with backend.session(ident, im.proxy_for(ident), headless=headless, platform='tiktok') as handle:
+             page = backend.page(handle)
+-            page.on('request', lambda r: treffer.append(r.url) if any(m in r.url for m in TELEMETRIE) else None)
++            wiedergabe = False
++            def request(r):
++                if wiedergabe and any(m in r.url for m in TELEMETRIE):
++                    treffer.append(r.url)
++            page.on('request', request)
+             page.goto(url, wait_until='domcontentloaded')
+             page.wait_for_timeout(3000)
+             try:
+@@ -31,7 +35,9 @@ def _lauf(cfg, konto, url, sekunden, headless):
+             except Exception:
+                 pass
+             t0 = page.evaluate("() => { const v=document.querySelector('video'); return v ? v.currentTime : -1; }")
++            wiedergabe = True
+             page.wait_for_timeout(int(sekunden * 1000))
++            wiedergabe = False
+             t1 = page.evaluate("() => { const v=document.querySelector('video'); return v ? v.currentTime : -1; }")
+             if t0 is not None and t1 is not None and t0 >= 0 and t1 >= 0:
+                 fortschritt = t1 - t0
+@@ -42,10 +48,11 @@ def _lauf(cfg, konto, url, sekunden, headless):
+ 
+ def _urteil(fortschritt, treffer):
+     if fortschritt > 1.0 and treffer:
+-        return 'BESTANDEN', f'Video läuft ({fortschritt:.1f}s) und {len(treffer)} Telemetrie-Requests.'
++        return 'BESTANDEN', (f'Videozeit steigt ({fortschritt:.1f}s) und {len(treffer)} Telemetrie-Requests '
++                            'während der Wiedergabe; serverseitige Watch-Time bleibt ungeprüft.')
+     if fortschritt > 1.0:
+-        return 'TEILWEISE', f'Video läuft ({fortschritt:.1f}s), aber keine Telemetrie erkannt.'
+-    return 'FEHLGESCHLAGEN', f'Video läuft nicht (currentTime-Δ {fortschritt:.2f}s).'
++        return 'TEILWEISE', f'Videozeit steigt ({fortschritt:.1f}s), aber keine Wiedergabe-Telemetrie erkannt.'
++    return 'FEHLGESCHLAGEN', f'Kein ausreichender Video-Fortschritt (currentTime-Δ {fortschritt:.2f}s).'
+ 
+ 
+ def main():
+@@ -54,11 +61,21 @@ def main():
+     p.add_argument('--konto', type=int)
+     p.add_argument('--sekunden', type=int, default=6)
+     args = p.parse_args()
++    if args.sekunden < 1:
++        p.error('--sekunden muss positiv sein')
++    if args.konto is not None and args.konto < 1:
++        p.error('--konto muss positiv sein')
+     cfg = load()
+     konto = None
+-    if args.konto:
++    if args.konto is not None:
+         with Store(cfg.db_path) as store:
+             konto = repo.get_account(store.db, args.konto)
++        if konto is None:
++            print(f'Konto {args.konto} nicht gefunden.', file=sys.stderr)
++            return 1
++        if konto['platform'] != 'tiktok':
++            print(f'Konto {args.konto} gehört nicht zu TikTok.', file=sys.stderr)
++            return 1
+     verdikte = {}
+     for headless in (True, False):
+         modus = 'headless' if headless else 'headful'
+@@ -71,11 +88,11 @@ def main():
+         print(f'{urteil}: {begruendung}'); verdikte[modus] = urteil
+     print('\n=== Verdikt ===')
+     if verdikte.get('headless') == 'BESTANDEN':
+-        print('Headless trägt Watch-Time -> FYP-Konsum headless.'); return 0
++        print('Headless zeigt Video-Fortschritt und begleitende Telemetrie; serverseitige Watch-Time ungeprüft.'); return 0
+     if verdikte.get('headful') == 'BESTANDEN':
+-        print('Nur headful trägt Watch-Time -> FYP-Sitzungen headful (headless=false).'); return 0
+-    print('Kein Modus registriert Watch-Time -> Player-Flags prüfen.'); return 1
++        print('Nur headful zeigt Video-Fortschritt und begleitende Telemetrie; serverseitige Watch-Time ungeprüft.'); return 0
++    print('Kein Modus zeigt Video-Fortschritt mit begleitender Telemetrie; Player-Flags prüfen.'); return 1
+ 
+ 
+ if __name__ == '__main__':
+-    sys.exit(main())
+\ No newline at end of file
++    sys.exit(main())
+diff --git a/docs/ASTRA-BEFUND.md b/docs/ASTRA-BEFUND.md
+new file mode 100644
+index 0000000..a968e3d
+--- /dev/null
++++ b/docs/ASTRA-BEFUND.md
+@@ -0,0 +1,34 @@
++# Astra-Befund
++
++Stand: 24.10.2026 · geprüfter Ausgangsstand: `4869993` (`main`)
++
++## Umfang und Ergebnis
++
++Geprüft wurden die Dateien aus `docs/GEDAECHTNIS-v3.md`, Abschnitt 2: `personas.py`, das Paket `fyp`, die beiden zugehörigen CLI-Befehle, `checks/watchtime_check.py` und `store.py`. Für die Watch-Time-Prüfung war zusätzlich eine kleine Korrektur in `backends/nodriver_shim.py` nötig. Die festgestellten Datenbank-, Buchungs- und Aufruffehler sind im lokalen Checkout behoben. Die öffentlichen Signaturen aus Abschnitt 4 sind unverändert.
++
++## Befunde und Korrekturen
++
++| Bereich | Reproduzierter Befund | Korrektur |
++| --- | --- | --- |
++| `personas.ensure_schema`, `fyp.ensure_schema`, `Store._migrate` | `executescript()` schloss eine bereits offene Transaktion. Ein erzwungener Fehler ließ Tabellen oder Account-Spalten nur teilweise angelegt zurück. Zwei parallele Persona-Migrationen konnten mit `duplicate column name: persona_id` scheitern. | DDL wird einzeln in einer Transaktion ausgeführt. Bei einer äußeren Transaktion werden Savepoints verwendet; `Store` migriert Persona- und FYP-Schema gemeinsam. Die Spaltenprüfung erfolgt nach Erwerb der Schreibsperre. |
++| `personas.anlegen`, `commands/personas.py` | Ein Fehler beim Anlegen eines Kanals konnte eine Persona ohne ihre Kanäle hinterlassen. `personas vorschlag` verwendete bei jedem Lauf dieselben Namen; ein späterer Namenskonflikt ließ bereits angelegte Vorschläge bestehen. | Persona und Kanäle werden atomar angelegt. Der CLI-Befehl vergibt freie Namen und speichert den gesamten Vorschlagslauf in einer Transaktion über `personas.anlegen`. |
++| `fyp.verbuche` | Eine unbekannte Identity erzeugte einen Eintrag in `konsum_log`, obwohl kein Account aktualisiert wurde. | Die Kontoaktualisierung wird geprüft; Log und Account werden gemeinsam geschrieben oder vollständig zurückgerollt. |
++| `fyp/konsum.py` | Relative Video-Links wurden nicht als Treffer erkannt. Treffer hatten immer `video_uid=NULL`; SQLite ließ dadurch identische Treffer mehrfach zu. Drei Wiederholungen konnten `fyp_status='im_fyp'` auslösen. | Autor und echte Video-ID werden aus relativen und absoluten TikTok-Links gelesen. Neue Treffer werden per ID dedupliziert; alte NULL-Treffer zählen nicht mehr für den Schwellwert. Treffer, Status und Sitzungslog werden gemeinsam gebucht. Bei null Schritten wird keine Sitzung gebucht. |
++| `fyp/seed.py` | Der Influencer wurde in der Kanalliste doppelt besucht. Auch ein gestoppter oder leerer Lauf setzte `fyp_status='gesaet'`. | Der Influencer erscheint einmal. Der Status wird nur nach einem vollständig beendeten Lauf mit mindestens einem Video gesetzt. |
++| `fyp/monitor.py` | Nach einem konkurrierenden `INSERT OR IGNORE` konnte eine nicht eingefügte Video-ID trotzdem als neu gemeldet werden. | Nur ein tatsächlich eingefügter Datensatz wird gemeldet. |
++| FYP-CLI und Browser-Ressourcen | `--konto` akzeptierte fehlende oder plattformfremde IDs; `seed` ohne Auswahl betraf alle TikTok-Konten. Nichtpositive Konsumdauer wurde akzeptiert. Fehler beim Laden einer Identity ließen bereits erzeugte Browser-Ressourcen offen. | Konto und Plattform werden geprüft; `seed` verlangt eine konkrete Konto-ID; die Dauer muss positiv sein. Die Laufzeitumgebung wird auch bei Identity-Fehlern geschlossen. |
++| `watchtime_check.py`, `nodriver_shim.py` | Der Watch-Time-Check nutzte `page.on('request')`, das im Nodriver-Shim fehlte. Eine unbekannte Konto-ID führte still zu einer anderen Identity; gespeicherte mobile Profile wurden als Desktop geöffnet. Seitenlade-Telemetrie konnte als Wiedergabe-Telemetrie zählen. | Der Shim bietet das Request-Ereignis über CDP an. Konto und gespeicherter Gerätetyp werden geprüft; die Laufzeitumgebung wird auch bei Fehlern geschlossen. Nur Requests während des Messfensters werden gezählt. Die Ausgabe behauptet keine serverseitig nachgewiesene Watch-Time. |
++
++## Verträge und Schema
++
++Die Signaturen von `personas.ensure_schema(db)`, `personas.anlegen(db, name, *, influencer, kanaele, beschreibung=None, influencer_gewicht=1.0, verhalten=None, now=None)`, `personas.aktive(db, platform='tiktok')`, `personas.persona_von(db_path, identity, platform='tiktok')`, `personas.zuweisen(db_path, platform='tiktok', *, nur_ohne=True)`, `fyp.ensure_schema(db)` und `fyp.verbuche(db_path, identity, *, schritte, treffer, now=None)` wurden geprüft und beibehalten. Die Signaturen der bestehenden Module `repo`, `streuung`, `rotation` und `aktionen` sowie das vorgegebene Idempotenzformat wurden nicht geändert.
++
++Nach einer erneuten Migration sind genau die vorgesehenen neuen Tabellen (`personas`, `persona_kanaele`, `fyp_videos`, `fyp_treffer`, `konsum_log`) und Account-Spalten (`persona_id`, `tier`, `folgt_influencer`, `fyp_status`, `warmth_score`, `letzter_konsum`, `konsum_sitzungen`) vorhanden. Ein zweiter `_migrate()`-Aufruf sowie parallele Starts gegen eine frische und eine minimale ältere SQLite-Datenbank gelangen im lokalen Test.
++
++## Prüfungen und Grenzen
++
++- Mit `.venv\Scripts\python.exe` bestanden 29 gezielte und bestehende Tests (`test_astra_schema`, `test_astra_cli`, `test_astra_fyp`, `test_repo`). Die betroffenen Python-Dateien ließen sich kompilieren; `git diff --check` meldete keine Formatfehler.
++- Die hier eingerichtete `.venv` verwendet Python **3.12.14**. Die im Auftrag genannte Python-Version 3.14 stand in diesem Checkout nicht bereit. `requests` und `nodriver` waren nicht installiert; deshalb wurden der bestehende umfassendere Audit-Test und ein echter Nodriver-Lauf nicht ausgeführt.
++- Ein zusätzlicher Backend-Testlauf hatte einen Fehler in `test_local_initialization_accepts_script_and_applies_cookies`: Der unveränderte `LocalBackend` fügt ein Fingerprint-Skript hinzu, während der Test eine leere Liste erwartet. Dieser Befund wurde nicht im Rahmen des Astra-Auftrags geändert.
++- Es gab keinen Live-Test gegen TikTok. Steigende Videozeit und begleitende Browser-Telemetrie beweisen keine serverseitig verbuchte Watch-Time. Browser-Aktionen und SQLite lassen sich außerdem nicht gemeinsam transaktional zurückrollen: Bei einem Prozessabbruch nach einer Browser-Aktion, aber vor dem Datenbank-Commit, kann eine externe Aktion ohne lokalen Eintrag bestehen bleiben.
++- `folgt_influencer` wird bei der Persona-Zuweisung gesetzt, im FYP-Ablauf aber nicht ausgewertet. Die genaue Bedeutung dieses Flags für Follow-Aktionen ist nicht spezifiziert; eine Verhaltensänderung ohne diesen Vertrag wurde nicht vorgenommen.
+diff --git a/socialscraper/backends/nodriver_shim.py b/socialscraper/backends/nodriver_shim.py
+index 717615a..6456963 100644
+--- a/socialscraper/backends/nodriver_shim.py
++++ b/socialscraper/backends/nodriver_shim.py
+@@ -1,5 +1,6 @@
+ import asyncio
+ import json
++from types import SimpleNamespace
+ 
+ 
+ class _Mouse:
+@@ -52,6 +53,14 @@ class TabShim:
+         self._r, self._t = runner, tab
+         self.mouse = _Mouse(runner, tab)
+ 
++    def on(self, event, callback):
++        if event != 'request':
++            raise ValueError(f'Nicht unterstütztes Browser-Ereignis: {event}')
++        from nodriver import cdp
++        self._t.add_handler(cdp.network.RequestWillBeSent,
++                            lambda item: callback(SimpleNamespace(url=item.request.url)))
++        self._r.run(self._t.send(cdp.network.enable()))
++
+     @property
+     def url(self):
+         return self._t.url
+diff --git a/socialscraper/commands/fyp.py b/socialscraper/commands/fyp.py
+index 36bfab5..b7b1a55 100644
+--- a/socialscraper/commands/fyp.py
++++ b/socialscraper/commands/fyp.py
+@@ -1,13 +1,25 @@
++import argparse
++
+ from .. import fyp, repo
+ from ..fyp import konsum, seed, monitor
+ from ..store import Store
+ NAME, HELP = 'fyp', 'For-You-Konsum, Seeding und Video-Monitoring'
+ 
+ 
++def _positive(value):
++    try:
++        number = int(value)
++    except ValueError:
++        raise argparse.ArgumentTypeError('Wert muss eine positive ganze Zahl sein') from None
++    if number < 1:
++        raise argparse.ArgumentTypeError('Wert muss eine positive ganze Zahl sein')
++    return number
++
++
+ def add_arguments(p):
+     was = p.add_subparsers(dest='was', required=True)
+-    s = was.add_parser('seed'); s.add_argument('--konto', type=int)
+-    k = was.add_parser('konsum'); k.add_argument('--konto', type=int); k.add_argument('--sekunden', type=int, default=360)
++    s = was.add_parser('seed'); s.add_argument('--konto', type=_positive, required=True)
++    k = was.add_parser('konsum'); k.add_argument('--konto', type=_positive); k.add_argument('--sekunden', type=_positive, default=360)
+     m = was.add_parser('monitor'); m.add_argument('--kanaele', required=True, help='mit Komma')
+ 
+ 
+@@ -17,10 +29,20 @@ def run(args, cfg):
+         return 0
+     with Store(cfg.db_path) as store:
+         fyp.ensure_schema(store.db)
+-        konten = [repo.get_account(store.db, args.konto)] if args.konto else repo.list_accounts(store.db, 'tiktok')
++        if args.was == 'seed' and args.konto is None:
++            raise ValueError('Für Seeding muss ein TikTok-Konto mit --konto gewählt werden.')
++        if args.konto is not None:
++            konto = repo.get_account(store.db, args.konto)
++            if konto is None:
++                raise ValueError(f'Konto {args.konto} nicht gefunden.')
++            if konto['platform'] != 'tiktok':
++                raise ValueError(f'Konto {args.konto} gehört nicht zu TikTok.')
++            konten = [konto]
++        else:
++            konten = repo.list_accounts(store.db, 'tiktok')
+     for konto in konten:
+         if args.was == 'seed':
+             seed.sitzung(cfg, konto)
+         elif args.was == 'konsum':
+             konsum.sitzung(cfg, konto, ziel_sekunden=args.sekunden)
+-    return 0
+\ No newline at end of file
++    return 0
+diff --git a/socialscraper/commands/personas.py b/socialscraper/commands/personas.py
+index d7e8bec..288b255 100644
+--- a/socialscraper/commands/personas.py
++++ b/socialscraper/commands/personas.py
+@@ -22,12 +22,28 @@ def run(args, cfg):
+                                    kanaele=[k.strip() for k in args.kanaele.split(',') if k.strip()])
+             print(f'Persona {pid} angelegt.'); return 0
+         if args.was == 'vorschlag':
+-            for p in personas.vorschlag([k.strip() for k in args.kanaele.split(',') if k.strip()],
+-                                        anzahl=args.anzahl, kanaele_je=args.je, influencer=args.influencer):
+-                personas.anlegen(db, p['name'], influencer=p['influencer'], kanaele=sorted(p['kanaele']))
+-            print(f'{args.anzahl} Personas angelegt.'); return 0
++            if not args.influencer:
++                raise ValueError('Persona braucht einen Influencer.')
++            vorschlaege = personas.vorschlag([k.strip() for k in args.kanaele.split(',') if k.strip()],
++                                             anzahl=args.anzahl, kanaele_je=args.je, influencer=args.influencer)
++            db.execute('BEGIN IMMEDIATE')
++            try:
++                namen = {zeile[0] for zeile in db.execute('SELECT name FROM personas')}
++                nummer = 1
++                for vorschlag in vorschlaege:
++                    while (name := f'persona_{nummer:02d}') in namen:
++                        nummer += 1
++                    namen.add(name)
++                    nummer += 1
++                    personas.anlegen(db, name, influencer=vorschlag['influencer'],
++                                    kanaele=sorted(vorschlag['kanaele']))
++                db.commit()
++            except BaseException:
++                db.rollback()
++                raise
++            print(f'{len(vorschlaege)} Personas angelegt.'); return 0
+         if args.was == 'zuweisen':
+             print(f'{personas.zuweisen(cfg.db_path)} Konten zugewiesen.'); return 0
+         for p in personas.aktive(db):
+             print(f"[{p['id']:>3}] {p['name']:<14} {len(p['kanaele'])} Kanäle · Influencer {p['influencer']}")
+-        return 0
+\ No newline at end of file
++        return 0
+diff --git a/socialscraper/fyp/__init__.py b/socialscraper/fyp/__init__.py
+index 3d1c237..f940455 100644
+--- a/socialscraper/fyp/__init__.py
++++ b/socialscraper/fyp/__init__.py
+@@ -2,7 +2,7 @@
+ import logging
+ 
+ from .. import repo
+-from ..store import Store
++from ..store import Store, _atomic_schema
+ 
+ log = logging.getLogger(__name__)
+ DDL = """
+@@ -20,17 +20,26 @@ CREATE TABLE IF NOT EXISTS konsum_log (
+ 
+ 
+ def ensure_schema(db):
+-    db.executescript(DDL)
+-    db.commit()
++    with _atomic_schema(db, 'fyp_schema'):
++        for statement in DDL.split(';'):
++            if statement.strip():
++                db.execute(statement)
+ 
+ 
+-def verbuche(db_path, identity, *, schritte, treffer, now=None):
+-    with Store(db_path) as store:
+-        ensure_schema(store.db)
+-        jetzt = repo.iso(now or repo.now())
+-        store.db.execute('INSERT INTO konsum_log (identity, sitzung_am, schritte, treffer) VALUES (?,?,?,?)',
+-                         (identity, jetzt, schritte, treffer))
+-        store.db.execute('UPDATE accounts SET letzter_konsum=?, konsum_sitzungen=COALESCE(konsum_sitzungen,0)+1,'
++def _verbuche_in_db(db, identity, *, schritte, treffer, now=None):
++    """Record one session in the caller's transaction."""
++    jetzt = repo.iso(now or repo.now())
++    updated = db.execute('UPDATE accounts SET letzter_konsum=?, konsum_sitzungen=COALESCE(konsum_sitzungen,0)+1,'
+                          ' warmth_score=MIN(1.0, COALESCE(warmth_score,0)+?) WHERE identity=?',
+                          (jetzt, 0.1 if treffer else 0.03, identity))
+-        store.db.commit()
+\ No newline at end of file
++    if updated.rowcount != 1:
++        raise ValueError(f'Konto nicht gefunden: {identity}')
++    db.execute('INSERT INTO konsum_log (identity, sitzung_am, schritte, treffer) VALUES (?,?,?,?)',
++               (identity, jetzt, schritte, treffer))
++
++
++def verbuche(db_path, identity, *, schritte, treffer, now=None):
++    with Store(db_path) as store:
++        with _atomic_schema(store.db, 'fyp_verbuche'):
++            ensure_schema(store.db)
++            _verbuche_in_db(store.db, identity, schritte=schritte, treffer=treffer, now=now)
+diff --git a/socialscraper/fyp/konsum.py b/socialscraper/fyp/konsum.py
+index 6783ba3..4604547 100644
+--- a/socialscraper/fyp/konsum.py
++++ b/socialscraper/fyp/konsum.py
+@@ -1,7 +1,8 @@
+ """Eine FYP-Sitzung: scrollen, schauen, und bei Persona-Kanälen handeln."""
+ import logging, random, re, time
++from urllib.parse import urlsplit
+ 
+-from . import ensure_schema, verbuche
++from . import ensure_schema, _verbuche_in_db
+ 
+ log = logging.getLogger(__name__)
+ FORYOU = 'https://www.tiktok.com/foryou'
+@@ -11,9 +12,21 @@ SAVE = ('[data-e2e="save-icon"]', '[data-e2e="undefined-icon"]', 'button[aria-la
+ FOLGEN = ('button[data-e2e="follow-button"]', 'button:has-text("Folgen")')
+ 
+ 
++def _video_meta(href):
++    """Autor und Video-ID aus absoluten oder relativen TikTok-Links lesen."""
++    try:
++        parsed = urlsplit(href or '')
++        host = parsed.hostname
++    except ValueError:
++        return None, None
++    if host and host != 'tiktok.com' and not host.endswith('.tiktok.com'):
++        return None, None
++    treffer = re.fullmatch(r'/@([^/]+)/video/(\d+)/?', parsed.path)
++    return (treffer.group(1).casefold(), treffer.group(2)) if treffer else (None, None)
++
++
+ def _autor(href):
+-    treffer = re.search(r'tiktok\.com/@([^/]+)/video/', href or '')
+-    return treffer.group(1).casefold() if treffer else None
++    return _video_meta(href)[0]
+ 
+ 
+ def _klick(page, auswahl):
+@@ -31,7 +44,6 @@ def _klick(page, auswahl):
+ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=None):
+     from .. import cli, personas
+     from ..net import humanize
+-    from ..net.cookies import CookieJar
+     rng = rng or random.Random()
+     persona = personas.persona_von(cfg.db_path, konto['identity'])
+     if persona is None:
+@@ -40,11 +52,12 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
+     verhalten = persona['verhalten']
+     ziel_sekunden = ziel_sekunden or rng.uniform(*verhalten['sitzung_sekunden'])
+     im, backend, sessions = cli.make_runtime(cfg, True)
+-    country, mobile = im.stored(konto['identity'])
+-    ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
+-    schritte = treffer = 0
+-    ende = time.monotonic() + ziel_sekunden
+     try:
++        country, mobile = im.stored(konto['identity'])
++        ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
++        schritte = treffer = 0
++        video_treffer = []
++        ende = time.monotonic() + ziel_sekunden
+         with backend.session(ident, im.proxy_for(ident), headless=cfg.headless, platform='tiktok') as handle:
+             page = backend.page(handle)
+             page.goto(FORYOU, wait_until='domcontentloaded')
+@@ -58,16 +71,16 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
+                 if link is None:
+                     humanize.scroll(page, 800, rng=rng, stop=stop)
+                     continue
+-                autor = _autor(link.get_attribute('href'))
++                autor, video_uid = _video_meta(link.get_attribute('href'))
+                 try:
+                     link.click()
+                 except Exception:
+                     continue
+                 page.wait_for_timeout(rng.randint(1500, 3500))
+-                if autor and autor in watchlist:
++                if autor and video_uid and autor in watchlist:
+                     treffer += 1
+                     _konsumiere(page, verhalten, rng)
+-                    _treffer(cfg.db_path, konto, persona, autor)
++                    video_treffer.append((autor, video_uid))
+                 else:
+                     page.wait_for_timeout(int(verhalten['kurz_sekunden'] * 1000))
+                 if rng.random() < 0.5:
+@@ -75,7 +88,8 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
+                 page.wait_for_timeout(rng.randint(600, 1800))
+                 schritte += 1
+             _cookies(backend, handle, konto['identity'])
+-        verbuche(cfg.db_path, konto['identity'], schritte=schritte, treffer=treffer)
++        if schritte:
++            _verbuche_sitzung(cfg.db_path, konto, persona, video_treffer, schritte, treffer)
+         melden(f'FYP-Sitzung {konto["label"]}: {schritte} Schritte, {treffer} Treffer.')
+         return schritte, treffer
+     finally:
+@@ -101,21 +115,28 @@ def _konsumiere(page, verhalten, rng):
+         _klick(page, FOLGEN)
+ 
+ 
+-def _treffer(db_path, konto, persona, autor):
+-    from ..store import Store
++def _verbuche_sitzung(db_path, konto, persona, video_treffer, schritte, treffer):
++    from ..store import Store, _atomic_schema
+     from .. import repo
+-    organisch = 1 if konto.get('fyp_status') != 'gesaet' else 0
+     with Store(db_path) as store:
+         ensure_schema(store.db)
+-        store.db.execute('INSERT OR IGNORE INTO fyp_treffer (identity, kanal, video_uid, persona_id, art, '
+-                         'organisch, erstellt_am) VALUES (?,?,?,?,?,?,?)',
+-                         (konto['identity'], autor, None, persona['id'], 'konsum', organisch, repo.iso(repo.now())))
+-        if organisch:
+-            n = store.db.execute('SELECT COUNT(*) FROM fyp_treffer WHERE identity=? AND organisch=1',
+-                                 (konto['identity'],)).fetchone()[0]
+-            if n >= 3 and konto.get('fyp_status') != 'im_fyp':
+-                store.db.execute("UPDATE accounts SET fyp_status='im_fyp' WHERE identity=?", (konto['identity'],))
+-        store.db.commit()
++        with _atomic_schema(store.db, 'fyp_konsum'):
++            row = store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                   (konto['identity'],)).fetchone()
++            status = row[0] if row else konto.get('fyp_status')
++            organisch = 0 if status == 'gesaet' else 1
++            jetzt = repo.iso(repo.now())
++            for autor, video_uid in video_treffer:
++                store.db.execute('INSERT OR IGNORE INTO fyp_treffer (identity, kanal, video_uid, persona_id, art, '
++                                 'organisch, erstellt_am) VALUES (?,?,?,?,?,?,?)',
++                                 (konto['identity'], autor, video_uid, persona['id'], 'konsum', organisch, jetzt))
++            if organisch and status != 'im_fyp':
++                n = store.db.execute('SELECT COUNT(*) FROM fyp_treffer WHERE identity=? AND organisch=1 '
++                                     'AND video_uid IS NOT NULL',
++                                     (konto['identity'],)).fetchone()[0]
++                if n >= 3:
++                    store.db.execute("UPDATE accounts SET fyp_status='im_fyp' WHERE identity=?", (konto['identity'],))
++            _verbuche_in_db(store.db, konto['identity'], schritte=schritte, treffer=treffer)
+ 
+ 
+ def _cookies(backend, handle, identity, platform='tiktok'):
+@@ -125,4 +146,4 @@ def _cookies(backend, handle, identity, platform='tiktok'):
+         if CookieJar.authenticated(cookies, platform):
+             CookieJar.save(identity, platform, cookies)
+     except Exception:
+-        log.debug('Cookies nicht erneuert', exc_info=True)
+\ No newline at end of file
++        log.debug('Cookies nicht erneuert', exc_info=True)
+diff --git a/socialscraper/fyp/monitor.py b/socialscraper/fyp/monitor.py
+index f7245e8..4e6a025 100644
+--- a/socialscraper/fyp/monitor.py
++++ b/socialscraper/fyp/monitor.py
+@@ -34,14 +34,13 @@ def neue_videos(cfg, kanaele, *, limit=30, melden=log.info, stop=None):
+                     if not treffer:
+                         continue
+                     uid = treffer.group(1)
+-                    if store.db.execute('SELECT 1 FROM fyp_videos WHERE uid=?', (uid,)).fetchone():
+-                        continue
+-                    store.db.execute('INSERT OR IGNORE INTO fyp_videos (kanal, uid, autor, erstellt_am) '
+-                                     'VALUES (?,?,?,?)', (handle, uid, handle, repo.iso(repo.now())))
+-                    neu.append(uid)
++                    eingefuegt = store.db.execute('INSERT OR IGNORE INTO fyp_videos (kanal, uid, autor, erstellt_am) '
++                                                 'VALUES (?,?,?,?)', (handle, uid, handle, repo.iso(repo.now())))
++                    if eingefuegt.rowcount:
++                        neu.append(uid)
+                 store.db.commit()
+         finally:
+             cli.shutdown_runtime(backend, sessions)
+     if neu:
+         melden(f'{len(neu)} neue Videos erkannt.')
+-    return neu
+\ No newline at end of file
++    return neu
+diff --git a/socialscraper/fyp/seed.py b/socialscraper/fyp/seed.py
+index bad6765..460e28a 100644
+--- a/socialscraper/fyp/seed.py
++++ b/socialscraper/fyp/seed.py
+@@ -16,21 +16,30 @@ def sitzung(cfg, konto, *, kanaele_je=3, rng=None, melden=log.info, stop=None):
+     persona = personas.persona_von(cfg.db_path, konto['identity'])
+     if persona is None:
+         return 0
+-    kanaele = [persona['influencer']] + rng.sample(persona['kanaele'], min(len(persona['kanaele']), 4))
++    influencer = persona['influencer']
++    influencer_key = influencer.casefold().lstrip('@')
++    weitere = list({kanal.casefold().lstrip('@'): kanal for kanal in persona['kanaele']
++                    if kanal.casefold().lstrip('@') != influencer_key}.values())
++    kanaele = [influencer] + rng.sample(weitere, min(len(weitere), 4))
+     im, backend, sessions = cli.make_runtime(cfg, True)
+-    country, mobile = im.stored(konto['identity'])
+-    ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
+-    schritte = 0
+     try:
++        country, mobile = im.stored(konto['identity'])
++        ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
++        schritte = 0
++        abgebrochen = False
+         with backend.session(ident, im.proxy_for(ident), headless=cfg.headless, platform='tiktok') as handle:
+             page = backend.page(handle)
+             for kanal in kanaele:
+                 if stop is not None and stop():
++                    abgebrochen = True
+                     break
+                 page.goto(SUCHE.format(kanal.lstrip('@')), wait_until='domcontentloaded')
+                 page.wait_for_timeout(rng.randint(2500, 4500))
+                 links = [l for l in page.query_selector_all(VIDEO_LINK) if l.is_visible()][:kanaele_je]
+                 for link in links:
++                    if stop is not None and stop():
++                        abgebrochen = True
++                        break
+                     try:
+                         link.click()
+                     except Exception:
+@@ -42,15 +51,18 @@ def sitzung(cfg, konto, *, kanaele_je=3, rng=None, melden=log.info, stop=None):
+                     if rng.random() < 0.5:
+                         page.keyboard.press('Escape')
+                     page.wait_for_timeout(rng.randint(800, 2000))
++                if abgebrochen:
++                    break
+                 if rng.random() < 0.5:
+                     _klick(page, FOLGEN)
+                 page.wait_for_timeout(rng.randint(800, 2000))
+             _cookies(backend, handle, konto['identity'])
+-        with Store(cfg.db_path) as store:
+-            ensure_schema(store.db)
+-            store.db.execute("UPDATE accounts SET fyp_status='gesaet' WHERE identity=?", (konto['identity'],))
+-            store.db.commit()
++        if schritte and not abgebrochen and (stop is None or not stop()):
++            with Store(cfg.db_path) as store:
++                ensure_schema(store.db)
++                store.db.execute("UPDATE accounts SET fyp_status='gesaet' WHERE identity=?", (konto['identity'],))
++                store.db.commit()
+         melden(f'Seeding {konto["label"]}: {schritte} Videos über {len(kanaele)} Kanäle.')
+         return schritte
+     finally:
+-        cli.shutdown_runtime(backend, sessions)
+\ No newline at end of file
++        cli.shutdown_runtime(backend, sessions)
+diff --git a/socialscraper/personas.py b/socialscraper/personas.py
+index 0a69b1f..bf3ac0e 100644
+--- a/socialscraper/personas.py
++++ b/socialscraper/personas.py
+@@ -2,7 +2,7 @@
+ import json, logging, random
+ 
+ from . import repo
+-from .store import Store
++from .store import Store, _atomic_schema
+ 
+ log = logging.getLogger(__name__)
+ TIERS = (('kern', 0.20), ('sekundaer', 0.40), ('rand', 0.40))
+@@ -26,12 +26,14 @@ CREATE INDEX IF NOT EXISTS idx_persona_kanaele ON persona_kanaele (persona_id);
+ 
+ 
+ def ensure_schema(db):
+-    db.executescript(DDL)
+-    vorhanden = {z[1] for z in db.execute('PRAGMA table_info(accounts)').fetchall()}
+-    for name, typ in SPALTEN.items():
+-        if name not in vorhanden:
+-            db.execute(f'ALTER TABLE accounts ADD COLUMN {name} {typ}')
+-    db.commit()
++    with _atomic_schema(db, 'personas_schema'):
++        for statement in DDL.split(';'):
++            if statement.strip():
++                db.execute(statement)
++        vorhanden = {z[1] for z in db.execute('PRAGMA table_info(accounts)')}
++        for name, typ in SPALTEN.items():
++            if name not in vorhanden:
++                db.execute(f'ALTER TABLE accounts ADD COLUMN {name} {typ}')
+ 
+ 
+ def _verhalten(text):
+@@ -46,15 +48,15 @@ def _verhalten(text):
+ def anlegen(db, name, *, influencer, kanaele, beschreibung=None, influencer_gewicht=1.0, verhalten=None, now=None):
+     if not name or not influencer:
+         raise ValueError('Persona braucht Namen und Influencer.')
+-    ensure_schema(db)
+-    cur = db.execute('INSERT INTO personas (name, beschreibung, influencer, influencer_gewicht, verhalten, '
+-                     'erstellt_am) VALUES (?,?,?,?,?,?)',
+-                     (name, beschreibung, influencer, float(influencer_gewicht),
+-                      json.dumps(verhalten, ensure_ascii=False) if verhalten else None, repo.iso(now or repo.now())))
+-    persona_id = cur.lastrowid
+-    for handle in dict.fromkeys(kanaele):
+-        db.execute('INSERT OR IGNORE INTO persona_kanaele (persona_id, handle) VALUES (?,?)', (persona_id, handle))
+-    db.commit()
++    with _atomic_schema(db, 'persona_anlegen'):
++        ensure_schema(db)
++        cur = db.execute('INSERT INTO personas (name, beschreibung, influencer, influencer_gewicht, verhalten, '
++                         'erstellt_am) VALUES (?,?,?,?,?,?)',
++                         (name, beschreibung, influencer, float(influencer_gewicht),
++                          json.dumps(verhalten, ensure_ascii=False) if verhalten else None, repo.iso(now or repo.now())))
++        persona_id = cur.lastrowid
++        for handle in dict.fromkeys(kanaele):
++            db.execute('INSERT OR IGNORE INTO persona_kanaele (persona_id, handle) VALUES (?,?)', (persona_id, handle))
+     return persona_id
+ 
+ 
+@@ -129,4 +131,4 @@ def zuweisen(db_path, platform='tiktok', *, nur_ohne=True):
+                        (persona['id'], tier, 1 if rng.random() < FOLGT_P else 0, konto['id']))
+             zugewiesen += 1
+         db.commit()
+-        return zugewiesen
+\ No newline at end of file
++        return zugewiesen
+diff --git a/socialscraper/store.py b/socialscraper/store.py
+index aeec3ea..9d5baa2 100644
+--- a/socialscraper/store.py
++++ b/socialscraper/store.py
+@@ -4,6 +4,7 @@ import json
+ import logging
+ import pathlib
+ import sqlite3
++from contextlib import contextmanager
+ 
+ log = logging.getLogger(__name__)
+ 
+@@ -125,6 +126,31 @@ def _now():
+ TABLES = frozenset(('videos', 'comments', 'video_snapshots'))
+ JSON_COLUMNS = ('hashtags', 'mentions', 'raw')
+ 
++
++@contextmanager
++def _atomic_schema(db, name):
++    """Run DDL atomically without committing a caller's open transaction."""
++    nested = db.in_transaction
++    if nested:
++        db.execute(f'SAVEPOINT {name}')
++    else:
++        db.execute('BEGIN IMMEDIATE')
++    try:
++        yield
++    except BaseException:
++        if nested:
++            db.execute(f'ROLLBACK TO {name}')
++            db.execute(f'RELEASE {name}')
++        else:
++            db.rollback()
++        raise
++    else:
++        if nested:
++            db.execute(f'RELEASE {name}')
++        else:
++            db.commit()
++
++
+ class Store:
+     def __init__(self, path='data/scrape.db'):
+         if str(path) != ':memory:': pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
+@@ -149,8 +175,9 @@ class Store:
+         ensure_schema(self.db)
+         from . import personas as _personas
+         from .fyp import ensure_schema as _fyp_schema
+-        _personas.ensure_schema(self.db)
+-        _fyp_schema(self.db)
++        with _atomic_schema(self.db, 'astra_schema'):
++            _personas.ensure_schema(self.db)
++            _fyp_schema(self.db)
+         self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
+         self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
+         self._add_columns('runs', {'accounts_used': 'TEXT'})
+diff --git a/tests/test_astra_cli.py b/tests/test_astra_cli.py
+new file mode 100644
+index 0000000..79fe9a5
+--- /dev/null
++++ b/tests/test_astra_cli.py
+@@ -0,0 +1,137 @@
++"""Regressionen für Persona-, FYP- und Watch-Time-Kommandos."""
++import asyncio
++import contextlib
++import io
++import sqlite3
++import sys
++import tempfile
++import types
++import unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import AsyncMock, Mock, patch
++
++from checks import watchtime_check
++from socialscraper import cli, personas, repo
++from socialscraper.backends.nodriver_shim import TabShim
++from socialscraper.commands import fyp as fyp_command
++from socialscraper.commands import personas as personas_command
++from socialscraper.store import Store
++
++
++class AstraCliTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.cfg = SimpleNamespace(db_path=str(Path(self.temp.name) / 'scrape.db'))
++
++    def test_fyp_requires_one_seed_account_and_positive_seconds(self):
++        parser = cli.parser()
++        for command in (['fyp', 'seed'], ['fyp', 'seed', '--konto', '0'],
++                        ['fyp', 'konsum', '--sekunden', '-1']):
++            with self.subTest(command=command), contextlib.redirect_stderr(io.StringIO()):
++                with self.assertRaises(SystemExit):
++                    parser.parse_args(command)
++
++    def test_fyp_rejects_unknown_and_non_tiktok_accounts(self):
++        with Store(self.cfg.db_path) as store:
++            instagram = repo.add_account(store.db, 'instagram', 'Test')
++        with patch.object(fyp_command.seed, 'sitzung') as session:
++            for account_id in (99999, instagram['id']):
++                with self.subTest(account_id=account_id), self.assertRaises(ValueError):
++                    fyp_command.run(SimpleNamespace(was='seed', konto=account_id), self.cfg)
++            session.assert_not_called()
++
++    def test_persona_proposals_take_unused_names(self):
++        with Store(self.cfg.db_path) as store:
++            personas.anlegen(store.db, 'persona_02', influencer='x', kanaele=['a'])
++        args = SimpleNamespace(was='vorschlag', influencer='x', kanaele='a,b,c', anzahl=2, je=2)
++        with contextlib.redirect_stdout(io.StringIO()):
++            self.assertEqual(personas_command.run(args, self.cfg), 0)
++        with Store(self.cfg.db_path) as store:
++            names = [row[0] for row in store.db.execute('SELECT name FROM personas ORDER BY id')]
++        self.assertEqual(names, ['persona_02', 'persona_01', 'persona_03'])
++
++    def test_persona_proposal_batch_rolls_back_on_later_error(self):
++        with Store(self.cfg.db_path) as store:
++            store.db.executescript("""CREATE TRIGGER reject_second BEFORE INSERT ON personas
++                WHEN NEW.name='persona_02' BEGIN SELECT RAISE(ABORT, 'test failure'); END;""")
++        args = SimpleNamespace(was='vorschlag', influencer='x', kanaele='a,b,c', anzahl=2, je=2)
++        with self.assertRaises(sqlite3.IntegrityError):
++            personas_command.run(args, self.cfg)
++        with Store(self.cfg.db_path) as store:
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM personas').fetchone()[0], 0)
++
++    def test_watchtime_rejects_unknown_account_before_browser_start(self):
++        with patch.object(watchtime_check, 'load', return_value=self.cfg), \
++             patch.object(watchtime_check, '_lauf') as run, \
++             patch.object(sys, 'argv', ['watchtime_check', '--konto', '99999']), \
++             contextlib.redirect_stderr(io.StringIO()) as stderr:
++            self.assertEqual(watchtime_check.main(), 1)
++        self.assertIn('nicht gefunden', stderr.getvalue())
++        run.assert_not_called()
++
++    def test_watchtime_uses_saved_device_and_ignores_page_load_requests(self):
++        class Page:
++            def __init__(self):
++                self.callback = None
++                self.reads = 0
++
++            def on(self, event, callback):
++                self.callback = callback
++
++            def goto(self, url, **kwargs):
++                self.callback(SimpleNamespace(url='https://mon.tiktokv.com/loading'))
++
++            def wait_for_timeout(self, milliseconds):
++                pass
++
++            def evaluate(self, expression):
++                if 'return v ? v.currentTime' in expression:
++                    self.reads += 1
++                    return 0 if self.reads == 1 else 3
++
++        page = Page()
++        ident = object()
++        im = SimpleNamespace(stored=Mock(return_value=('fr', True)),
++                             get=Mock(return_value=ident), proxy_for=Mock(return_value=None))
++        handle = object()
++        backend = SimpleNamespace(session=Mock(return_value=contextlib.nullcontext(handle)),
++                                  page=Mock(return_value=page))
++        konto = {'identity': 'konto', 'country': 'de'}
++        with patch.object(watchtime_check.cli, 'make_runtime', return_value=(im, backend, None)), \
++             patch.object(watchtime_check.cli, 'shutdown_runtime') as shutdown:
++            fortschritt, treffer = watchtime_check._lauf(self.cfg, konto, 'https://example.test', 2, True)
++        self.assertEqual((fortschritt, treffer), (3, []))
++        self.assertEqual(watchtime_check._urteil(fortschritt, treffer)[0], 'TEILWEISE')
++        im.get.assert_called_once_with('konto', 'fr', True)
++        shutdown.assert_called_once_with(backend, None)
++
++    def test_watchtime_shuts_down_after_identity_error(self):
++        im = SimpleNamespace(stored=Mock(side_effect=ValueError('broken identity')))
++        backend, sessions = object(), object()
++        with patch.object(watchtime_check.cli, 'make_runtime', return_value=(im, backend, sessions)), \
++             patch.object(watchtime_check.cli, 'shutdown_runtime') as shutdown:
++            with self.assertRaises(ValueError):
++                watchtime_check._lauf(self.cfg, None, 'https://example.test', 2, True)
++        shutdown.assert_called_once_with(backend, sessions)
++
++    def test_nodriver_request_event_adapts_to_page_callback(self):
++        event_type = type('RequestWillBeSent', (), {})
++        network = SimpleNamespace(RequestWillBeSent=event_type, enable=lambda: 'enable')
++        nodriver = types.ModuleType('nodriver')
++        nodriver.cdp = SimpleNamespace(network=network)
++        tab = SimpleNamespace(add_handler=Mock(), send=AsyncMock())
++        runner = SimpleNamespace(run=lambda coroutine: asyncio.run(coroutine))
++        urls = []
++        with patch.dict(sys.modules, {'nodriver': nodriver}):
++            TabShim(runner, tab).on('request', lambda request: urls.append(request.url))
++        registered_type, callback = tab.add_handler.call_args.args
++        self.assertIs(registered_type, event_type)
++        callback(SimpleNamespace(request=SimpleNamespace(url='https://example.test/report')))
++        self.assertEqual(urls, ['https://example.test/report'])
++        tab.send.assert_awaited_once_with('enable')
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_astra_fyp.py b/tests/test_astra_fyp.py
+new file mode 100644
+index 0000000..be4bfbd
+--- /dev/null
++++ b/tests/test_astra_fyp.py
+@@ -0,0 +1,166 @@
++"""Regressionen für die FYP-Buchung ohne Browser und ohne echte Kontodaten."""
++import random
++import tempfile
++import unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest import mock
++
++from socialscraper import cli, personas, repo
++from socialscraper.adapters.tiktok import TikTokAdapter
++from socialscraper.fyp import konsum, monitor, seed
++from socialscraper.store import Store
++
++
++class FypTests(unittest.TestCase):
++    def setUp(self):
++        tmp = tempfile.TemporaryDirectory()
++        self.addCleanup(tmp.cleanup)
++        self.path = Path(tmp.name) / 'fyp.db'
++        with Store(self.path) as store:
++            self.konto = repo.add_account(store.db, 'tiktok', 'FYP Test')
++        self.cfg = SimpleNamespace(db_path=self.path, headless=True)
++
++    def test_relative_video_link_has_author_and_uid(self):
++        self.assertEqual(konsum._video_meta('/@Alice/video/123?lang=de'), ('alice', '123'))
++        self.assertEqual(konsum._video_meta('https://www.tiktok.com/@Alice/video/123'), ('alice', '123'))
++        self.assertEqual(konsum._video_meta('https://example.org/@Alice/video/123'), (None, None))
++
++    def test_session_booking_deduplicates_and_rolls_back_together(self):
++        persona = {'id': 1}
++        konsum._verbuche_sitzung(self.path, self.konto, persona,
++                                [('alice', '1'), ('alice', '1'), ('alice', '2')], 3, 3)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM fyp_treffer').fetchone()[0], 2)
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'drift')
++        with mock.patch.object(konsum, '_verbuche_in_db', side_effect=RuntimeError('unterbrochen')):
++            with self.assertRaises(RuntimeError):
++                konsum._verbuche_sitzung(self.path, self.konto, persona, [('alice', '3')], 1, 1)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM fyp_treffer').fetchone()[0], 2)
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM konsum_log').fetchone()[0], 1)
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'drift')
++        konsum._verbuche_sitzung(self.path, self.konto, persona, [('alice', '3')], 1, 1)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM fyp_treffer').fetchone()[0], 3)
++            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM konsum_log').fetchone()[0], 2)
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'im_fyp')
++
++    def test_old_null_hits_do_not_promote_account(self):
++        with Store(self.path) as store:
++            for _ in range(3):
++                store.db.execute('INSERT INTO fyp_treffer '
++                                 '(identity, kanal, video_uid, persona_id, art, organisch, erstellt_am) '
++                                 "VALUES (?, 'alice', NULL, 1, 'konsum', 1, '2026-01-01')",
++                                 (self.konto['identity'],))
++            store.db.commit()
++        konsum._verbuche_sitzung(self.path, self.konto, {'id': 1}, [('alice', '4')], 1, 1)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'drift')
++
++    def _seed_runtime(self):
++        im, backend, page, link = mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock()
++        im.stored.return_value = ('de', False)
++        backend.page.return_value = page
++        page.query_selector_all.return_value = [link]
++        link.is_visible.return_value = True
++        return im, backend, page
++
++    def test_seed_aborted_after_one_video_keeps_drift(self):
++        im, backend, page = self._seed_runtime()
++        checks = iter((False, False, True))  # Kanal 1, Video 1, Kanal 2
++        persona = {'influencer': '@alice', 'kanaele': ['@alice', 'bob']}
++        with mock.patch.object(personas, 'persona_von', return_value=persona), \
++             mock.patch.object(cli, 'make_runtime', return_value=(im, backend, None)), \
++             mock.patch.object(cli, 'shutdown_runtime'), \
++             mock.patch.object(seed, '_cookies'):
++            schritte = seed.sitzung(self.cfg, self.konto, rng=random.Random(1),
++                                   stop=lambda: next(checks, True))
++        self.assertEqual(schritte, 1)
++        self.assertEqual(page.goto.call_count, 1)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'drift')
++
++    def test_seed_visits_influencer_once_and_marks_completed_run(self):
++        im, backend, page = self._seed_runtime()
++        persona = {'influencer': '@alice', 'kanaele': ['@alice', 'bob', '@ALICE']}
++        with mock.patch.object(personas, 'persona_von', return_value=persona), \
++             mock.patch.object(cli, 'make_runtime', return_value=(im, backend, None)), \
++             mock.patch.object(cli, 'shutdown_runtime'), \
++             mock.patch.object(seed, '_cookies'):
++            schritte = seed.sitzung(self.cfg, self.konto, rng=random.Random(1))
++        self.assertEqual(schritte, 2)
++        self.assertEqual(page.goto.call_count, 2)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'gesaet')
++
++    def test_seed_with_no_video_keeps_drift(self):
++        im, backend, page = self._seed_runtime()
++        page.query_selector_all.return_value = []
++        persona = {'influencer': '@alice', 'kanaele': ['@alice']}
++        with mock.patch.object(personas, 'persona_von', return_value=persona), \
++             mock.patch.object(cli, 'make_runtime', return_value=(im, backend, None)), \
++             mock.patch.object(cli, 'shutdown_runtime'), \
++             mock.patch.object(seed, '_cookies'):
++            self.assertEqual(seed.sitzung(self.cfg, self.konto, rng=random.Random(1)), 0)
++        with Store(self.path) as store:
++            self.assertEqual(store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
++                                              (self.konto['identity'],)).fetchone()[0], 'drift')
++
++    def test_empty_konsum_does_not_book_warmth(self):
++        im, backend = mock.MagicMock(), mock.MagicMock()
++        im.stored.return_value = ('de', False)
++        persona = {'kanaele': ['alice'], 'verhalten': {}}
++        with mock.patch.object(personas, 'persona_von', return_value=persona), \
++             mock.patch.object(cli, 'make_runtime', return_value=(im, backend, None)), \
++             mock.patch.object(cli, 'shutdown_runtime'), \
++             mock.patch.object(konsum, '_cookies'), \
++             mock.patch.object(konsum, '_verbuche_sitzung') as buchen:
++            self.assertEqual(konsum.sitzung(self.cfg, self.konto, ziel_sekunden=60,
++                                           stop=lambda: True), (0, 0))
++        buchen.assert_not_called()
++
++    def test_runtime_is_closed_if_identity_loading_fails(self):
++        persona = {'influencer': 'alice', 'kanaele': ['alice'], 'verhalten': {}}
++        for fail_at in ('stored', 'get'):
++            im, backend = mock.MagicMock(), mock.MagicMock()
++            im.stored.return_value = ('de', False)
++            getattr(im, fail_at).side_effect = ValueError('kaputte Identity')
++            with mock.patch.object(personas, 'persona_von', return_value=persona), \
++                 mock.patch.object(cli, 'make_runtime', return_value=(im, backend, None)), \
++                 mock.patch.object(cli, 'shutdown_runtime') as shutdown:
++                for module in (seed, konsum):
++                    with self.assertRaises(ValueError):
++                        module.sitzung(self.cfg, self.konto, **({'ziel_sekunden': 1} if module is konsum else {}))
++                self.assertEqual(shutdown.call_count, 2)
++
++    def test_monitor_reports_only_successfully_inserted_videos(self):
++        db = mock.MagicMock()
++
++        def execute(sql, *_):
++            if sql.startswith('SELECT'):
++                return SimpleNamespace(fetchone=lambda: None)
++            return SimpleNamespace(rowcount=0)  # anderer Lauf war beim INSERT schneller
++
++        db.execute.side_effect = execute
++        fake_store = mock.MagicMock()
++        fake_store.__enter__.return_value = SimpleNamespace(db=db)
++        melden = mock.MagicMock()
++        with mock.patch('socialscraper.store.Store', return_value=fake_store), \
++             mock.patch.object(monitor, 'ensure_schema'), \
++             mock.patch.object(cli, 'make_runtime', return_value=(None, None, None)), \
++             mock.patch.object(cli, 'shutdown_runtime'), \
++             mock.patch.object(TikTokAdapter, 'profile_urls',
++                               return_value=['https://www.tiktok.com/@alice/video/42']):
++            self.assertEqual(monitor.neue_videos(self.cfg, ['alice'], melden=melden), [])
++        melden.assert_not_called()
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_astra_schema.py b/tests/test_astra_schema.py
+new file mode 100644
+index 0000000..7a23cb5
+--- /dev/null
++++ b/tests/test_astra_schema.py
+@@ -0,0 +1,134 @@
++"""Regression tests for the persona/FYP database transaction boundaries."""
++
++import sqlite3
++import tempfile
++import threading
++import unittest
++from contextlib import closing
++from pathlib import Path
++from unittest.mock import patch
++
++from socialscraper import fyp, personas, repo
++from socialscraper.store import Store
++
++
++class AstraSchemaTests(unittest.TestCase):
++    def test_schema_helpers_preserve_caller_transaction(self):
++        for helper in (personas.ensure_schema, fyp.ensure_schema):
++            with self.subTest(helper=helper.__module__), Store(':memory:') as store:
++                db = store.db
++                db.execute('CREATE TABLE marker (value INTEGER)')
++                db.execute('INSERT INTO marker VALUES (1)')
++                helper(db)
++                self.assertTrue(db.in_transaction)
++                db.rollback()
++                self.assertEqual(db.execute('SELECT COUNT(*) FROM marker').fetchone()[0], 0)
++
++    def test_schema_failure_leaves_no_partial_tables_or_columns(self):
++        db = sqlite3.connect(':memory:')
++        self.addCleanup(db.close)
++        db.execute('CREATE TABLE accounts (id INTEGER PRIMARY KEY)')
++        db.commit()
++        alters = 0
++
++        def reject_second_alter(action, _one, _two, _database, _source):
++            nonlocal alters
++            if action == sqlite3.SQLITE_ALTER_TABLE:
++                alters += 1
++                if alters == 2:
++                    return sqlite3.SQLITE_DENY
++            return sqlite3.SQLITE_OK
++
++        db.set_authorizer(reject_second_alter)
++        with self.assertRaises(sqlite3.DatabaseError):
++            personas.ensure_schema(db)
++        db.set_authorizer(None)
++        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
++        columns = {row[1] for row in db.execute('PRAGMA table_info(accounts)')}
++        self.assertNotIn('personas', tables)
++        self.assertNotIn('persona_id', columns)
++
++        def reject_treffer(action, name, _two, _database, _source):
++            if action == sqlite3.SQLITE_CREATE_TABLE and name == 'fyp_treffer':
++                return sqlite3.SQLITE_DENY
++            return sqlite3.SQLITE_OK
++
++        db.set_authorizer(reject_treffer)
++        with self.assertRaises(sqlite3.DatabaseError):
++            fyp.ensure_schema(db)
++        db.set_authorizer(None)
++        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
++        self.assertNotIn('fyp_videos', tables)
++
++    def test_store_migrates_persona_and_fyp_schemas_together(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path = Path(directory) / 'store.db'
++            with patch.object(fyp, 'ensure_schema', side_effect=RuntimeError('injected failure')):
++                with self.assertRaisesRegex(RuntimeError, 'injected failure'):
++                    Store(path)
++            with closing(sqlite3.connect(path)) as db:
++                tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
++                columns = {row[1] for row in db.execute('PRAGMA table_info(accounts)')}
++                self.assertNotIn('personas', tables)
++                self.assertNotIn('persona_id', columns)
++                self.assertNotIn('fyp_videos', tables)
++            with Store(path) as store:
++                columns = {row[1] for row in store.db.execute('PRAGMA table_info(accounts)')}
++                self.assertIn('persona_id', columns)
++                self.assertIsNotNone(store.db.execute("SELECT 1 FROM sqlite_master WHERE name='fyp_videos'").fetchone())
++
++    def test_parallel_persona_migrations(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path = Path(directory) / 'store.db'
++            with closing(sqlite3.connect(path)) as db:
++                db.execute('CREATE TABLE accounts (id INTEGER PRIMARY KEY)')
++            start = threading.Barrier(2)
++            failures = []
++
++            def migrate():
++                try:
++                    with closing(sqlite3.connect(path, timeout=5)) as db:
++                        start.wait(timeout=5)
++                        personas.ensure_schema(db)
++                except BaseException as exc:
++                    failures.append(exc)
++
++            threads = [threading.Thread(target=migrate) for _ in range(2)]
++            for thread in threads:
++                thread.start()
++            for thread in threads:
++                thread.join(timeout=10)
++            self.assertFalse(any(thread.is_alive() for thread in threads))
++            self.assertEqual(failures, [])
++            with closing(sqlite3.connect(path)) as db:
++                columns = {row[1] for row in db.execute('PRAGMA table_info(accounts)')}
++                self.assertTrue(personas.SPALTEN.keys() <= columns)
++
++    def test_anlegen_rolls_back_persona_and_channels(self):
++        with Store(':memory:') as store:
++            db = store.db
++            db.execute("CREATE TRIGGER reject_channel BEFORE INSERT ON persona_kanaele "
++                       "BEGIN SELECT RAISE(ABORT, 'injected failure'); END")
++            with self.assertRaises(sqlite3.IntegrityError):
++                personas.anlegen(db, 'Test', influencer='star', kanaele=['channel'])
++            self.assertEqual(db.execute('SELECT COUNT(*) FROM personas').fetchone()[0], 0)
++            self.assertEqual(db.execute('SELECT COUNT(*) FROM persona_kanaele').fetchone()[0], 0)
++
++    def test_verbuche_requires_existing_account_and_helper_does_not_commit(self):
++        with tempfile.TemporaryDirectory() as directory:
++            path = Path(directory) / 'store.db'
++            with self.assertRaisesRegex(ValueError, 'Konto nicht gefunden'):
++                fyp.verbuche(path, 'missing', schritte=2, treffer=1)
++            with Store(path) as store:
++                self.assertEqual(store.db.execute('SELECT COUNT(*) FROM konsum_log').fetchone()[0], 0)
++                account = repo.add_account(store.db, 'tiktok', 'Test')
++                fyp._verbuche_in_db(store.db, account['identity'], schritte=2, treffer=1)
++                self.assertTrue(store.db.in_transaction)
++                store.db.rollback()
++                self.assertEqual(store.db.execute('SELECT COUNT(*) FROM konsum_log').fetchone()[0], 0)
++                self.assertEqual(store.db.execute('SELECT konsum_sitzungen FROM accounts WHERE id=?',
++                                                  (account['id'],)).fetchone()[0], 0)
++
++
++if __name__ == '__main__':
++    unittest.main()
