@@ -132,7 +132,7 @@ class BackendLifecycleTests(unittest.TestCase):
         with self.playwright_module("patchright", pw), \
                 patch("socialscraper.backends.base.CookieJar.load", return_value=cookies):
             handle = backend.open(self.identity, None, platform="tiktok", headless=True)
-        self.assertEqual(scripts, [])  # keine JS-Eingriffe mehr: Werte bleiben die des echten Chrome
+        self.assertEqual(len(scripts), 1)  # ein Init-Skript setzt Hardware, GPU, Canvas und Audio je Identity
         self.assertEqual(Path(pw.chromium.launch_persistent_context.call_args.kwargs["user_data_dir"]),
                          Path(self.tmp.name) / "example" / "tiktok")
         context.add_cookies.assert_called_once_with(cookies)
