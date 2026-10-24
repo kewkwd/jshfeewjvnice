@@ -34,14 +34,15 @@ ROLLE_HAUPT, ROLLE_NEBEN = 'haupt', 'neben'
 # anteil = Tendenz über die ganze Flotte. Kein Archetyp ist nur auf einem Gerät.
 # alter = (Mitte, Kern-Streuung, Auslauf-Streuung). Die Kurven sind bewusst breit:
 #         ein Gaming-Nerd ist nicht 22 plus/minus 3, sondern 14 bis 35.
-#         Sonst verrät der Archetyp das Alter zu sicher.
+# verhalten = Tendenz je Archetyp, damit ein Teenie erkennbar anders tickt als ein stiller
+#         Beobachter — aber ohne Klammer. Zielwert bleibt unter 0,70.
 ARCHETYPEN = {
     'teenie': {
         'name': 'Teenie-Fan', 'anteil': 0.16, 'milieu': 'Schule, Memes, Clips',
         'alter': (16, 2.5, 4.0),
         'geschlecht': {'w': 0.52, 'm': 0.46, 'd': 0.02},
         'geraet': {'app': 0.74, 'web': 0.14, 'beide': 0.12},
-        'verhalten': {'still': 0.15, 'schauer': 0.25, 'liker': 0.30, 'mischer': 0.20, 'kommentierer': 0.10},
+        'verhalten': {'still': 0.12, 'schauer': 0.22, 'liker': 0.45, 'mischer': 0.13, 'kommentierer': 0.08},
         'stil': ('kurz', 'emojis', 'kleinschreibung', 'slang'),
     },
     'girlpower': {
@@ -49,7 +50,7 @@ ARCHETYPEN = {
         'alter': (20, 3.5, 5.0),
         'geschlecht': {'w': 0.88, 'm': 0.08, 'd': 0.04},
         'geraet': {'app': 0.78, 'web': 0.10, 'beide': 0.12},
-        'verhalten': {'still': 0.12, 'schauer': 0.22, 'liker': 0.28, 'mischer': 0.24, 'kommentierer': 0.14},
+        'verhalten': {'still': 0.07, 'schauer': 0.19, 'liker': 0.40, 'mischer': 0.22, 'kommentierer': 0.12},
         'stil': ('begeistert', 'emojis', 'herz', 'ausrufezeichen'),
     },
     'links': {
@@ -57,7 +58,7 @@ ARCHETYPEN = {
         'alter': (26, 5.0, 7.0),
         'geschlecht': {'w': 0.48, 'm': 0.48, 'd': 0.04},
         'geraet': {'app': 0.56, 'web': 0.32, 'beide': 0.12},
-        'verhalten': {'still': 0.18, 'schauer': 0.27, 'liker': 0.20, 'mischer': 0.20, 'kommentierer': 0.15},
+        'verhalten': {'still': 0.16, 'schauer': 0.35, 'liker': 0.11, 'mischer': 0.18, 'kommentierer': 0.20},
         'stil': ('polemisch', 'kleinschreibung', 'ironie', 'slang'),
     },
     'gaming': {
@@ -65,7 +66,7 @@ ARCHETYPEN = {
         'alter': (23, 5.5, 7.0),
         'geschlecht': {'w': 0.22, 'm': 0.75, 'd': 0.03},
         'geraet': {'app': 0.30, 'web': 0.58, 'beide': 0.12},
-        'verhalten': {'still': 0.20, 'schauer': 0.30, 'liker': 0.22, 'mischer': 0.18, 'kommentierer': 0.10},
+        'verhalten': {'still': 0.17, 'schauer': 0.40, 'liker': 0.20, 'mischer': 0.17, 'kommentierer': 0.06},
         'stil': ('fachbegriffe', 'ironie', 'kurz'),
     },
     'migra': {
@@ -73,7 +74,7 @@ ARCHETYPEN = {
         'alter': (23, 5.0, 7.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
         'geraet': {'app': 0.78, 'web': 0.10, 'beide': 0.12},
-        'verhalten': {'still': 0.14, 'schauer': 0.24, 'liker': 0.26, 'mischer': 0.24, 'kommentierer': 0.12},
+        'verhalten': {'still': 0.11, 'schauer': 0.19, 'liker': 0.40, 'mischer': 0.22, 'kommentierer': 0.08},
         'stil': ('slang', 'emojis', 'kurz'),
     },
     'student': {
@@ -81,7 +82,7 @@ ARCHETYPEN = {
         'alter': (23, 3.5, 5.0),
         'geschlecht': {'w': 0.52, 'm': 0.46, 'd': 0.02},
         'geraet': {'app': 0.42, 'web': 0.45, 'beide': 0.13},
-        'verhalten': {'still': 0.16, 'schauer': 0.26, 'liker': 0.22, 'mischer': 0.22, 'kommentierer': 0.14},
+        'verhalten': {'still': 0.16, 'schauer': 0.32, 'liker': 0.12, 'mischer': 0.22, 'kommentierer': 0.18},
         'stil': ('sachlich', 'ironie', 'kleinschreibung'),
     },
     'normalo': {
@@ -89,7 +90,7 @@ ARCHETYPEN = {
         'alter': (32, 6.0, 8.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
         'geraet': {'app': 0.36, 'web': 0.52, 'beide': 0.12},
-        'verhalten': {'still': 0.26, 'schauer': 0.30, 'liker': 0.18, 'mischer': 0.18, 'kommentierer': 0.08},
+        'verhalten': {'still': 0.26, 'schauer': 0.42, 'liker': 0.12, 'mischer': 0.16, 'kommentierer': 0.04},
         'stil': ('normal', 'kurz'),
     },
     'stiller': {
@@ -97,7 +98,7 @@ ARCHETYPEN = {
         'alter': (38, 7.0, 9.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
         'geraet': {'app': 0.40, 'web': 0.46, 'beide': 0.14},
-        'verhalten': {'still': 0.45, 'schauer': 0.35, 'liker': 0.10, 'mischer': 0.08, 'kommentierer': 0.02},
+        'verhalten': {'still': 0.62, 'schauer': 0.30, 'liker': 0.05, 'mischer': 0.02, 'kommentierer': 0.01},
         'stil': ('kurz', 'selten'),
     },
 }
