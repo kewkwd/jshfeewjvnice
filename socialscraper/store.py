@@ -4,6 +4,7 @@ import json
 import logging
 import pathlib
 import sqlite3
+from contextlib import contextmanager
 
 log = logging.getLogger(__name__)
 
@@ -125,6 +126,31 @@ def _now():
 TABLES = frozenset(('videos', 'comments', 'video_snapshots'))
 JSON_COLUMNS = ('hashtags', 'mentions', 'raw')
 
+
+@contextmanager
+def _atomic_schema(db, name):
+    """Run DDL atomically without committing a caller's open transaction."""
+    nested = db.in_transaction
+    if nested:
+        db.execute(f'SAVEPOINT {name}')
+    else:
+        db.execute('BEGIN IMMEDIATE')
+    try:
+        yield
+    except BaseException:
+        if nested:
+            db.execute(f'ROLLBACK TO {name}')
+            db.execute(f'RELEASE {name}')
+        else:
+            db.rollback()
+        raise
+    else:
+        if nested:
+            db.execute(f'RELEASE {name}')
+        else:
+            db.commit()
+
+
 class Store:
     def __init__(self, path='data/scrape.db'):
         if str(path) != ':memory:': pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -149,8 +175,9 @@ class Store:
         ensure_schema(self.db)
         from . import personas as _personas
         from .fyp import ensure_schema as _fyp_schema
-        _personas.ensure_schema(self.db)
-        _fyp_schema(self.db)
+        with _atomic_schema(self.db, 'astra_schema'):
+            _personas.ensure_schema(self.db)
+            _fyp_schema(self.db)
         self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
         self._add_columns('accounts', ACCOUNT_COLUMNS)    # Rotation, fester Proxy (Referenz), Abkühlung, Tageslimit
         self._add_columns('runs', {'accounts_used': 'TEXT'})

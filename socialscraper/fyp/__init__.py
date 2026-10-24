@@ -2,7 +2,7 @@
 import logging
 
 from .. import repo
-from ..store import Store
+from ..store import Store, _atomic_schema
 
 log = logging.getLogger(__name__)
 DDL = """
@@ -20,17 +20,26 @@ CREATE TABLE IF NOT EXISTS konsum_log (
 
 
 def ensure_schema(db):
-    db.executescript(DDL)
-    db.commit()
+    with _atomic_schema(db, 'fyp_schema'):
+        for statement in DDL.split(';'):
+            if statement.strip():
+                db.execute(statement)
+
+
+def _verbuche_in_db(db, identity, *, schritte, treffer, now=None):
+    """Record one session in the caller's transaction."""
+    jetzt = repo.iso(now or repo.now())
+    updated = db.execute('UPDATE accounts SET letzter_konsum=?, konsum_sitzungen=COALESCE(konsum_sitzungen,0)+1,'
+                         ' warmth_score=MIN(1.0, COALESCE(warmth_score,0)+?) WHERE identity=?',
+                         (jetzt, 0.1 if treffer else 0.03, identity))
+    if updated.rowcount != 1:
+        raise ValueError(f'Konto nicht gefunden: {identity}')
+    db.execute('INSERT INTO konsum_log (identity, sitzung_am, schritte, treffer) VALUES (?,?,?,?)',
+               (identity, jetzt, schritte, treffer))
 
 
 def verbuche(db_path, identity, *, schritte, treffer, now=None):
     with Store(db_path) as store:
-        ensure_schema(store.db)
-        jetzt = repo.iso(now or repo.now())
-        store.db.execute('INSERT INTO konsum_log (identity, sitzung_am, schritte, treffer) VALUES (?,?,?,?)',
-                         (identity, jetzt, schritte, treffer))
-        store.db.execute('UPDATE accounts SET letzter_konsum=?, konsum_sitzungen=COALESCE(konsum_sitzungen,0)+1,'
-                         ' warmth_score=MIN(1.0, COALESCE(warmth_score,0)+?) WHERE identity=?',
-                         (jetzt, 0.1 if treffer else 0.03, identity))
-        store.db.commit()
+        with _atomic_schema(store.db, 'fyp_verbuche'):
+            ensure_schema(store.db)
+            _verbuche_in_db(store.db, identity, schritte=schritte, treffer=treffer, now=now)

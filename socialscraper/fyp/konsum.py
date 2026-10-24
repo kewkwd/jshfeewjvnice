@@ -1,7 +1,8 @@
 """Eine FYP-Sitzung: scrollen, schauen, und bei Persona-Kanälen handeln."""
 import logging, random, re, time
+from urllib.parse import urlsplit
 
-from . import ensure_schema, verbuche
+from . import ensure_schema, _verbuche_in_db
 
 log = logging.getLogger(__name__)
 FORYOU = 'https://www.tiktok.com/foryou'
@@ -11,9 +12,21 @@ SAVE = ('[data-e2e="save-icon"]', '[data-e2e="undefined-icon"]', 'button[aria-la
 FOLGEN = ('button[data-e2e="follow-button"]', 'button:has-text("Folgen")')
 
 
+def _video_meta(href):
+    """Autor und Video-ID aus absoluten oder relativen TikTok-Links lesen."""
+    try:
+        parsed = urlsplit(href or '')
+        host = parsed.hostname
+    except ValueError:
+        return None, None
+    if host and host != 'tiktok.com' and not host.endswith('.tiktok.com'):
+        return None, None
+    treffer = re.fullmatch(r'/@([^/]+)/video/(\d+)/?', parsed.path)
+    return (treffer.group(1).casefold(), treffer.group(2)) if treffer else (None, None)
+
+
 def _autor(href):
-    treffer = re.search(r'tiktok\.com/@([^/]+)/video/', href or '')
-    return treffer.group(1).casefold() if treffer else None
+    return _video_meta(href)[0]
 
 
 def _klick(page, auswahl):
@@ -31,7 +44,6 @@ def _klick(page, auswahl):
 def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=None):
     from .. import cli, personas
     from ..net import humanize
-    from ..net.cookies import CookieJar
     rng = rng or random.Random()
     persona = personas.persona_von(cfg.db_path, konto['identity'])
     if persona is None:
@@ -40,11 +52,12 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
     verhalten = persona['verhalten']
     ziel_sekunden = ziel_sekunden or rng.uniform(*verhalten['sitzung_sekunden'])
     im, backend, sessions = cli.make_runtime(cfg, True)
-    country, mobile = im.stored(konto['identity'])
-    ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
-    schritte = treffer = 0
-    ende = time.monotonic() + ziel_sekunden
     try:
+        country, mobile = im.stored(konto['identity'])
+        ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
+        schritte = treffer = 0
+        video_treffer = []
+        ende = time.monotonic() + ziel_sekunden
         with backend.session(ident, im.proxy_for(ident), headless=cfg.headless, platform='tiktok') as handle:
             page = backend.page(handle)
             page.goto(FORYOU, wait_until='domcontentloaded')
@@ -58,16 +71,16 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
                 if link is None:
                     humanize.scroll(page, 800, rng=rng, stop=stop)
                     continue
-                autor = _autor(link.get_attribute('href'))
+                autor, video_uid = _video_meta(link.get_attribute('href'))
                 try:
                     link.click()
                 except Exception:
                     continue
                 page.wait_for_timeout(rng.randint(1500, 3500))
-                if autor and autor in watchlist:
+                if autor and video_uid and autor in watchlist:
                     treffer += 1
                     _konsumiere(page, verhalten, rng)
-                    _treffer(cfg.db_path, konto, persona, autor)
+                    video_treffer.append((autor, video_uid))
                 else:
                     page.wait_for_timeout(int(verhalten['kurz_sekunden'] * 1000))
                 if rng.random() < 0.5:
@@ -75,7 +88,8 @@ def sitzung(cfg, konto, *, ziel_sekunden=None, rng=None, melden=log.info, stop=N
                 page.wait_for_timeout(rng.randint(600, 1800))
                 schritte += 1
             _cookies(backend, handle, konto['identity'])
-        verbuche(cfg.db_path, konto['identity'], schritte=schritte, treffer=treffer)
+        if schritte:
+            _verbuche_sitzung(cfg.db_path, konto, persona, video_treffer, schritte, treffer)
         melden(f'FYP-Sitzung {konto["label"]}: {schritte} Schritte, {treffer} Treffer.')
         return schritte, treffer
     finally:
@@ -101,21 +115,28 @@ def _konsumiere(page, verhalten, rng):
         _klick(page, FOLGEN)
 
 
-def _treffer(db_path, konto, persona, autor):
-    from ..store import Store
+def _verbuche_sitzung(db_path, konto, persona, video_treffer, schritte, treffer):
+    from ..store import Store, _atomic_schema
     from .. import repo
-    organisch = 1 if konto.get('fyp_status') != 'gesaet' else 0
     with Store(db_path) as store:
         ensure_schema(store.db)
-        store.db.execute('INSERT OR IGNORE INTO fyp_treffer (identity, kanal, video_uid, persona_id, art, '
-                         'organisch, erstellt_am) VALUES (?,?,?,?,?,?,?)',
-                         (konto['identity'], autor, None, persona['id'], 'konsum', organisch, repo.iso(repo.now())))
-        if organisch:
-            n = store.db.execute('SELECT COUNT(*) FROM fyp_treffer WHERE identity=? AND organisch=1',
-                                 (konto['identity'],)).fetchone()[0]
-            if n >= 3 and konto.get('fyp_status') != 'im_fyp':
-                store.db.execute("UPDATE accounts SET fyp_status='im_fyp' WHERE identity=?", (konto['identity'],))
-        store.db.commit()
+        with _atomic_schema(store.db, 'fyp_konsum'):
+            row = store.db.execute('SELECT fyp_status FROM accounts WHERE identity=?',
+                                   (konto['identity'],)).fetchone()
+            status = row[0] if row else konto.get('fyp_status')
+            organisch = 0 if status == 'gesaet' else 1
+            jetzt = repo.iso(repo.now())
+            for autor, video_uid in video_treffer:
+                store.db.execute('INSERT OR IGNORE INTO fyp_treffer (identity, kanal, video_uid, persona_id, art, '
+                                 'organisch, erstellt_am) VALUES (?,?,?,?,?,?,?)',
+                                 (konto['identity'], autor, video_uid, persona['id'], 'konsum', organisch, jetzt))
+            if organisch and status != 'im_fyp':
+                n = store.db.execute('SELECT COUNT(*) FROM fyp_treffer WHERE identity=? AND organisch=1 '
+                                     'AND video_uid IS NOT NULL',
+                                     (konto['identity'],)).fetchone()[0]
+                if n >= 3:
+                    store.db.execute("UPDATE accounts SET fyp_status='im_fyp' WHERE identity=?", (konto['identity'],))
+            _verbuche_in_db(store.db, konto['identity'], schritte=schritte, treffer=treffer)
 
 
 def _cookies(backend, handle, identity, platform='tiktok'):

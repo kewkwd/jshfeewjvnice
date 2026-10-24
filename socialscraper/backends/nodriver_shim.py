@@ -1,5 +1,6 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
 
 class _Mouse:
@@ -51,6 +52,14 @@ class TabShim:
     def __init__(self, runner, tab):
         self._r, self._t = runner, tab
         self.mouse = _Mouse(runner, tab)
+
+    def on(self, event, callback):
+        if event != 'request':
+            raise ValueError(f'Nicht unterstütztes Browser-Ereignis: {event}')
+        from nodriver import cdp
+        self._t.add_handler(cdp.network.RequestWillBeSent,
+                            lambda item: callback(SimpleNamespace(url=item.request.url)))
+        self._r.run(self._t.send(cdp.network.enable()))
 
     @property
     def url(self):

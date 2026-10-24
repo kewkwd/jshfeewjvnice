@@ -2,7 +2,7 @@
 import json, logging, random
 
 from . import repo
-from .store import Store
+from .store import Store, _atomic_schema
 
 log = logging.getLogger(__name__)
 TIERS = (('kern', 0.20), ('sekundaer', 0.40), ('rand', 0.40))
@@ -26,12 +26,14 @@ CREATE INDEX IF NOT EXISTS idx_persona_kanaele ON persona_kanaele (persona_id);
 
 
 def ensure_schema(db):
-    db.executescript(DDL)
-    vorhanden = {z[1] for z in db.execute('PRAGMA table_info(accounts)').fetchall()}
-    for name, typ in SPALTEN.items():
-        if name not in vorhanden:
-            db.execute(f'ALTER TABLE accounts ADD COLUMN {name} {typ}')
-    db.commit()
+    with _atomic_schema(db, 'personas_schema'):
+        for statement in DDL.split(';'):
+            if statement.strip():
+                db.execute(statement)
+        vorhanden = {z[1] for z in db.execute('PRAGMA table_info(accounts)')}
+        for name, typ in SPALTEN.items():
+            if name not in vorhanden:
+                db.execute(f'ALTER TABLE accounts ADD COLUMN {name} {typ}')
 
 
 def _verhalten(text):
@@ -46,15 +48,15 @@ def _verhalten(text):
 def anlegen(db, name, *, influencer, kanaele, beschreibung=None, influencer_gewicht=1.0, verhalten=None, now=None):
     if not name or not influencer:
         raise ValueError('Persona braucht Namen und Influencer.')
-    ensure_schema(db)
-    cur = db.execute('INSERT INTO personas (name, beschreibung, influencer, influencer_gewicht, verhalten, '
-                     'erstellt_am) VALUES (?,?,?,?,?,?)',
-                     (name, beschreibung, influencer, float(influencer_gewicht),
-                      json.dumps(verhalten, ensure_ascii=False) if verhalten else None, repo.iso(now or repo.now())))
-    persona_id = cur.lastrowid
-    for handle in dict.fromkeys(kanaele):
-        db.execute('INSERT OR IGNORE INTO persona_kanaele (persona_id, handle) VALUES (?,?)', (persona_id, handle))
-    db.commit()
+    with _atomic_schema(db, 'persona_anlegen'):
+        ensure_schema(db)
+        cur = db.execute('INSERT INTO personas (name, beschreibung, influencer, influencer_gewicht, verhalten, '
+                         'erstellt_am) VALUES (?,?,?,?,?,?)',
+                         (name, beschreibung, influencer, float(influencer_gewicht),
+                          json.dumps(verhalten, ensure_ascii=False) if verhalten else None, repo.iso(now or repo.now())))
+        persona_id = cur.lastrowid
+        for handle in dict.fromkeys(kanaele):
+            db.execute('INSERT OR IGNORE INTO persona_kanaele (persona_id, handle) VALUES (?,?)', (persona_id, handle))
     return persona_id
 
 

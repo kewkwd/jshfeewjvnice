@@ -34,11 +34,10 @@ def neue_videos(cfg, kanaele, *, limit=30, melden=log.info, stop=None):
                     if not treffer:
                         continue
                     uid = treffer.group(1)
-                    if store.db.execute('SELECT 1 FROM fyp_videos WHERE uid=?', (uid,)).fetchone():
-                        continue
-                    store.db.execute('INSERT OR IGNORE INTO fyp_videos (kanal, uid, autor, erstellt_am) '
-                                     'VALUES (?,?,?,?)', (handle, uid, handle, repo.iso(repo.now())))
-                    neu.append(uid)
+                    eingefuegt = store.db.execute('INSERT OR IGNORE INTO fyp_videos (kanal, uid, autor, erstellt_am) '
+                                                 'VALUES (?,?,?,?)', (handle, uid, handle, repo.iso(repo.now())))
+                    if eingefuegt.rowcount:
+                        neu.append(uid)
                 store.db.commit()
         finally:
             cli.shutdown_runtime(backend, sessions)

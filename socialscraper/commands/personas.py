@@ -22,10 +22,26 @@ def run(args, cfg):
                                    kanaele=[k.strip() for k in args.kanaele.split(',') if k.strip()])
             print(f'Persona {pid} angelegt.'); return 0
         if args.was == 'vorschlag':
-            for p in personas.vorschlag([k.strip() for k in args.kanaele.split(',') if k.strip()],
-                                        anzahl=args.anzahl, kanaele_je=args.je, influencer=args.influencer):
-                personas.anlegen(db, p['name'], influencer=p['influencer'], kanaele=sorted(p['kanaele']))
-            print(f'{args.anzahl} Personas angelegt.'); return 0
+            if not args.influencer:
+                raise ValueError('Persona braucht einen Influencer.')
+            vorschlaege = personas.vorschlag([k.strip() for k in args.kanaele.split(',') if k.strip()],
+                                             anzahl=args.anzahl, kanaele_je=args.je, influencer=args.influencer)
+            db.execute('BEGIN IMMEDIATE')
+            try:
+                namen = {zeile[0] for zeile in db.execute('SELECT name FROM personas')}
+                nummer = 1
+                for vorschlag in vorschlaege:
+                    while (name := f'persona_{nummer:02d}') in namen:
+                        nummer += 1
+                    namen.add(name)
+                    nummer += 1
+                    personas.anlegen(db, name, influencer=vorschlag['influencer'],
+                                    kanaele=sorted(vorschlag['kanaele']))
+                db.commit()
+            except BaseException:
+                db.rollback()
+                raise
+            print(f'{len(vorschlaege)} Personas angelegt.'); return 0
         if args.was == 'zuweisen':
             print(f'{personas.zuweisen(cfg.db_path)} Konten zugewiesen.'); return 0
         for p in personas.aktive(db):

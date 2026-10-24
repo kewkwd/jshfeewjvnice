@@ -16,21 +16,30 @@ def sitzung(cfg, konto, *, kanaele_je=3, rng=None, melden=log.info, stop=None):
     persona = personas.persona_von(cfg.db_path, konto['identity'])
     if persona is None:
         return 0
-    kanaele = [persona['influencer']] + rng.sample(persona['kanaele'], min(len(persona['kanaele']), 4))
+    influencer = persona['influencer']
+    influencer_key = influencer.casefold().lstrip('@')
+    weitere = list({kanal.casefold().lstrip('@'): kanal for kanal in persona['kanaele']
+                    if kanal.casefold().lstrip('@') != influencer_key}.values())
+    kanaele = [influencer] + rng.sample(weitere, min(len(weitere), 4))
     im, backend, sessions = cli.make_runtime(cfg, True)
-    country, mobile = im.stored(konto['identity'])
-    ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
-    schritte = 0
     try:
+        country, mobile = im.stored(konto['identity'])
+        ident = im.get(konto['identity'], country or konto.get('country') or 'de', bool(mobile))
+        schritte = 0
+        abgebrochen = False
         with backend.session(ident, im.proxy_for(ident), headless=cfg.headless, platform='tiktok') as handle:
             page = backend.page(handle)
             for kanal in kanaele:
                 if stop is not None and stop():
+                    abgebrochen = True
                     break
                 page.goto(SUCHE.format(kanal.lstrip('@')), wait_until='domcontentloaded')
                 page.wait_for_timeout(rng.randint(2500, 4500))
                 links = [l for l in page.query_selector_all(VIDEO_LINK) if l.is_visible()][:kanaele_je]
                 for link in links:
+                    if stop is not None and stop():
+                        abgebrochen = True
+                        break
                     try:
                         link.click()
                     except Exception:
@@ -42,14 +51,17 @@ def sitzung(cfg, konto, *, kanaele_je=3, rng=None, melden=log.info, stop=None):
                     if rng.random() < 0.5:
                         page.keyboard.press('Escape')
                     page.wait_for_timeout(rng.randint(800, 2000))
+                if abgebrochen:
+                    break
                 if rng.random() < 0.5:
                     _klick(page, FOLGEN)
                 page.wait_for_timeout(rng.randint(800, 2000))
             _cookies(backend, handle, konto['identity'])
-        with Store(cfg.db_path) as store:
-            ensure_schema(store.db)
-            store.db.execute("UPDATE accounts SET fyp_status='gesaet' WHERE identity=?", (konto['identity'],))
-            store.db.commit()
+        if schritte and not abgebrochen and (stop is None or not stop()):
+            with Store(cfg.db_path) as store:
+                ensure_schema(store.db)
+                store.db.execute("UPDATE accounts SET fyp_status='gesaet' WHERE identity=?", (konto['identity'],))
+                store.db.commit()
         melden(f'Seeding {konto["label"]}: {schritte} Videos über {len(kanaele)} Kanäle.')
         return schritte
     finally:
