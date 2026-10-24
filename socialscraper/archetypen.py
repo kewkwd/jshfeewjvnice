@@ -11,6 +11,9 @@ Archetyp, auch nach Neustart und Neuberechnung. Keine Neuverteilung bei jedem La
 
 ARCHETYPEN ist der veränderliche Teil. Sie steht absichtlich im Code und nicht in der
 Datenbank, damit Änderungen im Git-Diff sichtbar sind.
+
+Achtung: „alter" ist in SQLite ein Schlüsselwort. Der Spaltenname steht in jedem SQL in
+Anführungszeichen, in Python bleibt der Schlüssel normal `alter`.
 """
 import logging
 import random
@@ -21,7 +24,7 @@ from .store import Store, _atomic_schema
 log = logging.getLogger(__name__)
 
 KERN = 0.70                       # Anteil im Schwerpunkt; der Rest ist Auslauf
-ALTER_MIN, ALTER_MAX = 13, 58     # äußere Weltgrenzen, NICHT die Bandgrenze des Archetyps
+ALTER_MIN, ALTER_MAX = 13, 62     # äußere Weltgrenzen, NICHT die Bandgrenze des Archetyps
 HAUPT_MIN, HAUPT_MAX = 0.60, 0.80
 NEBEN_VERTEILUNG = ((0, 0.55), (1, 0.35), (2, 0.10))
 VERHALTEN = ('still', 'schauer', 'liker', 'mischer', 'kommentierer')
@@ -29,69 +32,71 @@ GERAETE = ('web', 'app', 'beide')
 ROLLE_HAUPT, ROLLE_NEBEN = 'haupt', 'neben'
 
 # anteil = Tendenz über die ganze Flotte. Kein Archetyp ist nur auf einem Gerät.
-# alter = (Mitte, Kern-Streuung, Auslauf-Streuung). Das Band ist eine Kurve, keine Klammer.
+# alter = (Mitte, Kern-Streuung, Auslauf-Streuung). Die Kurven sind bewusst breit:
+#         ein Gaming-Nerd ist nicht 22 plus/minus 3, sondern 14 bis 35.
+#         Sonst verrät der Archetyp das Alter zu sicher.
 ARCHETYPEN = {
     'teenie': {
         'name': 'Teenie-Fan', 'anteil': 0.16, 'milieu': 'Schule, Memes, Clips',
-        'alter': (15, 1.2, 2.5),
+        'alter': (16, 2.5, 4.0),
         'geschlecht': {'w': 0.52, 'm': 0.46, 'd': 0.02},
-        'geraet': {'app': 0.80, 'web': 0.10, 'beide': 0.10},
+        'geraet': {'app': 0.74, 'web': 0.14, 'beide': 0.12},
         'verhalten': {'still': 0.15, 'schauer': 0.25, 'liker': 0.30, 'mischer': 0.20, 'kommentierer': 0.10},
         'stil': ('kurz', 'emojis', 'kleinschreibung', 'slang'),
     },
     'girlpower': {
         'name': 'Girl-Power-Fan', 'anteil': 0.14, 'milieu': 'Fandoms, Dance, Pop',
-        'alter': (20, 2.0, 3.0),
+        'alter': (20, 3.5, 5.0),
         'geschlecht': {'w': 0.88, 'm': 0.08, 'd': 0.04},
-        'geraet': {'app': 0.85, 'web': 0.07, 'beide': 0.08},
+        'geraet': {'app': 0.78, 'web': 0.10, 'beide': 0.12},
         'verhalten': {'still': 0.12, 'schauer': 0.22, 'liker': 0.28, 'mischer': 0.24, 'kommentierer': 0.14},
         'stil': ('begeistert', 'emojis', 'herz', 'ausrufezeichen'),
     },
     'links': {
         'name': 'Linke Zecke', 'anteil': 0.12, 'milieu': 'Politik, Satire, Podcasts',
-        'alter': (24, 3.0, 4.0),
+        'alter': (26, 5.0, 7.0),
         'geschlecht': {'w': 0.48, 'm': 0.48, 'd': 0.04},
-        'geraet': {'app': 0.60, 'web': 0.30, 'beide': 0.10},
+        'geraet': {'app': 0.56, 'web': 0.32, 'beide': 0.12},
         'verhalten': {'still': 0.18, 'schauer': 0.27, 'liker': 0.20, 'mischer': 0.20, 'kommentierer': 0.15},
         'stil': ('polemisch', 'kleinschreibung', 'ironie', 'slang'),
     },
     'gaming': {
         'name': 'Gaming-Nerd', 'anteil': 0.13, 'milieu': 'Games, Streams, Tech',
-        'alter': (22, 3.0, 4.0),
+        'alter': (23, 5.5, 7.0),
         'geschlecht': {'w': 0.22, 'm': 0.75, 'd': 0.03},
-        'geraet': {'app': 0.32, 'web': 0.60, 'beide': 0.08},
+        'geraet': {'app': 0.30, 'web': 0.58, 'beide': 0.12},
         'verhalten': {'still': 0.20, 'schauer': 0.30, 'liker': 0.22, 'mischer': 0.18, 'kommentierer': 0.10},
         'stil': ('fachbegriffe', 'ironie', 'kurz'),
     },
     'migra': {
         'name': 'Migra-Bubble', 'anteil': 0.14, 'milieu': 'Familie, Musik, Comedy',
-        'alter': (22, 3.0, 4.0),
+        'alter': (23, 5.0, 7.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
-        'geraet': {'app': 0.85, 'web': 0.06, 'beide': 0.09},
+        'geraet': {'app': 0.78, 'web': 0.10, 'beide': 0.12},
         'verhalten': {'still': 0.14, 'schauer': 0.24, 'liker': 0.26, 'mischer': 0.24, 'kommentierer': 0.12},
         'stil': ('slang', 'emojis', 'kurz'),
     },
     'student': {
         'name': 'Studentin/Student', 'anteil': 0.12, 'milieu': 'Uni, Kultur, Nachrichten',
-        'alter': (23, 2.5, 3.5),
+        'alter': (23, 3.5, 5.0),
         'geschlecht': {'w': 0.52, 'm': 0.46, 'd': 0.02},
-        'geraet': {'app': 0.45, 'web': 0.42, 'beide': 0.13},
+        'geraet': {'app': 0.42, 'web': 0.45, 'beide': 0.13},
         'verhalten': {'still': 0.16, 'schauer': 0.26, 'liker': 0.22, 'mischer': 0.22, 'kommentierer': 0.14},
         'stil': ('sachlich', 'ironie', 'kleinschreibung'),
     },
     'normalo': {
         'name': 'Normalo berufstätig', 'anteil': 0.12, 'milieu': 'Alltag, Sport, Regionales',
-        'alter': (32, 4.0, 5.0),
+        'alter': (32, 6.0, 8.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
-        'geraet': {'app': 0.38, 'web': 0.50, 'beide': 0.12},
+        'geraet': {'app': 0.36, 'web': 0.52, 'beide': 0.12},
         'verhalten': {'still': 0.26, 'schauer': 0.30, 'liker': 0.18, 'mischer': 0.18, 'kommentierer': 0.08},
         'stil': ('normal', 'kurz'),
     },
     'stiller': {
         'name': 'Stiller Beobachter', 'anteil': 0.07, 'milieu': 'Nachrichten, Doku, Ruhiges',
-        'alter': (37, 5.0, 6.0),
+        'alter': (38, 7.0, 9.0),
         'geschlecht': {'w': 0.50, 'm': 0.48, 'd': 0.02},
-        'geraet': {'app': 0.42, 'web': 0.44, 'beide': 0.14},
+        'geraet': {'app': 0.40, 'web': 0.46, 'beide': 0.14},
         'verhalten': {'still': 0.45, 'schauer': 0.35, 'liker': 0.10, 'mischer': 0.08, 'kommentierer': 0.02},
         'stil': ('kurz', 'selten'),
     },
@@ -275,36 +280,35 @@ AUSDRUECKE = {
 FELDER = tuple(AUSDRUECKE)
 
 
-def _grundgeruest(links, rechts):
-    if links not in AUSDRUECKE or rechts not in AUSDRUECKE:
-        raise ArchetypError(f'Unbekanntes Feld. Erlaubt: {", ".join(FELDER)}')
-    return (f'FROM accounts a LEFT JOIN account_archetypen aa ON aa.account_id=a.id AND aa.rolle=? '
-            f'LEFT JOIN archetypen t ON t.id=aa.archetyp_id')
+def _grundgeruest():
+    return ('FROM accounts a LEFT JOIN account_archetypen aa ON aa.account_id=a.id AND aa.rolle=? '
+            'LEFT JOIN archetypen t ON t.id=aa.archetyp_id')
 
 
 def kreuztabelle(db_path, links, rechts):
     """Zählwerk: wie oft kommt links=Wert und rechts=Wert zusammen vor."""
+    if links not in AUSDRUECKE or rechts not in AUSDRUECKE:
+        raise ArchetypError(f'Unbekanntes Feld. Erlaubt: {", ".join(FELDER)}')
     with Store(db_path) as store:
         db = store.db
         ensure_schema(db)
-        sql = (f'SELECT {AUSDRUECKE[links]}, {AUSDRUECKE[rechts]}, COUNT(*) {_grundgeruest(links, rechts)} '
-               f'GROUP BY 1, 2')
+        sql = (f'SELECT {AUSDRUECKE[links]}, {AUSDRUECKE[rechts]}, COUNT(*) {_grundgeruest()} GROUP BY 1, 2')
         tabelle = {}
         for links_wert, rechts_wert, anzahl in db.execute(sql, (ROLLE_HAUPT,)):
             tabelle.setdefault(links_wert, {})[rechts_wert] = anzahl
         return tabelle
 
 
-def vorhersagbarkeit(db_path, links, rechts):
-    """Wie gut sagt links rechts voraus? 1.0 = vollständig, 0.0 = zufällig.
-
-    Gewichteter Mittelwert über die Werte von links: Anteil des jeweils häufigsten Wertes von rechts."""
-    tabelle = kreuztabelle(db_path, links, rechts)
+def _vorhersage(tabelle):
     gesamt = sum(sum(zeile.values()) for zeile in tabelle.values())
     if not gesamt:
         return 0.0
-    treffer = sum(max(zeile.values()) for zeile in tabelle.values())
-    return treffer / gesamt
+    return sum(max(zeile.values()) for zeile in tabelle.values()) / gesamt
+
+
+def vorhersagbarkeit(db_path, links, rechts):
+    """Wie gut sagt links rechts voraus? 1.0 = vollständig, 0.0 = zufällig."""
+    return _vorhersage(kreuztabelle(db_path, links, rechts))
 
 
 PAARE = (('archetyp', 'alter'), ('archetyp', 'geschlecht'), ('archetyp', 'geraet'),
@@ -314,10 +318,18 @@ ZIELWERT = 0.70
 
 
 def pruefen(db_path, *, zielwert=ZIELWERT):
-    """Misch-Prüfer: keine Paarung darf über dem Zielwert liegen. Unter 0.40 ist fast zu zufällig."""
+    """Misch-Prüfer: keine Paarung darf über dem Zielwert liegen. Unter 0.40 ist fast zu zufällig.
+
+    Paare, bei denen eine Seite nur einen einzigen Wert hat (z. B. `tier`, solange keine
+    Personas zugewiesen sind), werden als „nur ein Wert“ gekennzeichnet und nicht gewertet."""
     befunde = []
     for links, rechts in PAARE:
-        wert = vorhersagbarkeit(db_path, links, rechts)
+        tabelle = kreuztabelle(db_path, links, rechts)
+        werte_rechts = {w for zeile in tabelle.values() for w in zeile}
+        if len(tabelle) < 2 or len(werte_rechts) < 2:
+            befunde.append({'links': links, 'rechts': rechts, 'wert': 1.0, 'urteil': 'nur ein Wert'})
+            continue
+        wert = _vorhersage(tabelle)
         befunde.append({'links': links, 'rechts': rechts, 'wert': round(wert, 3),
                         'urteil': 'zu gleichförmig' if wert > zielwert else
                                   ('fast zufällig' if wert < 0.40 else 'gut')})
