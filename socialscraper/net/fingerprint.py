@@ -1,12 +1,11 @@
-"""Identitaet pro Konto: Zeitzone, Sprache, Fenstergroesse und mobile Browser-Emulation.
+"""Identitaet pro Konto: Zeitzone, Sprache, Fenstergroesse, Geraetekennung und mobile Browser-Emulation.
 
-Grundsatz: Auf dem Desktop wird NICHTS erfunden, was der echte Chrome selbst kennt. Grafikkarte, Prozessorkerne,
-Geraetespeicher, Plugins und Plattform bleiben die echten Werte des Rechners (sonst widersprechen sie den
-Client Hints und dem Worker-Kontext). Die gespeicherten Felder `hardware_concurrency`, `device_memory`,
-`webgl_*`, `canvas_seed`, `platform` und `user_agent` bleiben nur aus Gruenden der Abwaertskompatibilitaet
-bestehender Identitaetsdateien und beschreiben den Stand bei der Anlage; die Desktop-Starts wenden sie nicht an.
-Auch `geolocation` bleibt als Kompatibilitaetsfeld erhalten, wird aber in keinem lokalen Browserstart angewandt.
-Ein Browserprofil oder seine Region belegt weder einen physischen Standort noch ein echtes Android-Geraet.
+Auf dem Desktop bleiben Betriebssystem, Plattform und der echte User-Agent die Werte des Rechners (sonst
+widersprechen sie den Client Hints und dem Worker-Kontext). Zusaetzlich wird pro Identity eine plausible,
+aber FESTE Geraetekennung vergeben (Prozessorkerne, Geraetespeicher, Grafikkarte, Canvas- und Audio-Rauschen),
+die `backends/local.py` per Init-Skript setzt - sonst saehen alle Konten auf einer Maschine gleich aus
+(Geraete-Kohorte). Ein Browserprofil oder seine Region belegt weder einen physischen Standort noch ein
+echtes Android-Geraet.
 """
 import hashlib, random, re, sys
 from dataclasses import dataclass, asdict, fields
@@ -30,10 +29,32 @@ OS_PROFILES = {
  "linux": ("X11; Linux x86_64", "Linux x86_64", "Linux"),
  "macos": ("Macintosh; Intel Mac OS X 10_15_7", "MacIntel", "macOS"),
 }
-_MOBILE_UA = ("Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 "
+
+# Mobil: realistische Geraete (Modell, Android-Version, GPU). Pro Identity deterministisch gewaehlt.
+MOBILE_PROFILES = (
+    ("SM-S911B", "14", "Qualcomm", "Adreno (TM) 740"),
+    ("SM-S921B", "14", "Qualcomm", "Adreno (TM) 750"),
+    ("SM-A546B", "14", "ARM", "Mali-G68 MC4"),
+    ("SM-G991B", "13", "ARM", "Mali-G78 MP14"),
+    ("Pixel 7", "14", "ARM", "Mali-G710 MC10"),
+    ("Pixel 8", "14", "ARM", "Mali-G715-Immortalis MC11"),
+    ("CPH2451", "13", "Qualcomm", "Adreno (TM) 730"),
+    ("2211133G", "13", "ARM", "Mali-G68 MC4"),
+)
+_MOBILE_UA = ("Mozilla/5.0 (Linux; Android {android}; {model}) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/{chrome} Mobile Safari/537.36")
 _DESKTOP_UA = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome} Safari/537.36"
 _CHROME_TOKEN = re.compile(r"Chrome/(?:[\d.]+|\{chrome\})")
+
+# Desktop: plausible GPU-Paare (Hersteller, ANGLE-Renderer) gegen die Geraete-Kohorte.
+DESKTOP_GPUS = (
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 6600 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+)
 
 @dataclass
 class Fingerprint:
@@ -42,6 +63,8 @@ class Fingerprint:
     hardware_concurrency: int; device_memory: int
     webgl_vendor: str; webgl_renderer: str
     canvas_seed: int; color_depth: int; device_scale: float; is_mobile: bool
+    platform_version: str = "14.0.0"; model: str = ""
+    canvas_noise: float = 0.0; audio_noise: float = 0.0
     def to_dict(self): return asdict(self)
 
     @classmethod
@@ -83,15 +106,16 @@ def build(identity: str, country: str | None, mobile: bool = False) -> Fingerpri
     rng = random.Random(hashlib.sha256(identity.encode()).digest())
     tz, locale, langs, (lat, lon) = GEO.get((country or "us").lower(), GEO["us"])
     if mobile:
+        model, android, vendor, renderer = MOBILE_PROFILES[rng.randrange(len(MOBILE_PROFILES))]
         vp = rng.choice([{"width":390,"height":844},{"width":393,"height":851},{"width":412,"height":915}])
         # Die Chrome-Version wird erst beim Start aus dem installierten Chrome eingesetzt.
-        ua = _MOBILE_UA
-        platform, vendor, renderer = "Linux armv8l", "Qualcomm", "Adreno (TM) 740"
+        ua = _MOBILE_UA.format(android=android, model=model, chrome="{chrome}")
+        platform, platform_version = "Linux armv8l", f"{android}.0.0"
     else:
         vp = rng.choice([{"width":1920,"height":1080},{"width":1536,"height":864},{"width":1680,"height":1050}])
         ua = _DESKTOP_UA.format(os=OS_PROFILES[host_os()][0], chrome="{chrome}")
-        platform = OS_PROFILES[host_os()][1]
-        vendor = renderer = ""   # echte Grafikkarte des Rechners, nichts erfunden
+        platform, platform_version, model = OS_PROFILES[host_os()][1], "", ""
+        vendor, renderer = DESKTOP_GPUS[rng.randrange(len(DESKTOP_GPUS))]
     return Fingerprint(
         identity=identity, user_agent=ua, platform=platform, viewport=vp,
         screen={"width":vp["width"],"height":vp["height"]+rng.choice([0,40,80])},
@@ -99,4 +123,7 @@ def build(identity: str, country: str | None, mobile: bool = False) -> Fingerpri
         geolocation={"latitude":lat+rng.uniform(-.4,.4),"longitude":lon+rng.uniform(-.4,.4),"accuracy":50},
         hardware_concurrency=rng.choice([4,8,8,12,16]), device_memory=rng.choice([8,8,16,16,32]),
         webgl_vendor=vendor, webgl_renderer=renderer, canvas_seed=rng.randint(1,2**31),
-        color_depth=24, device_scale=rng.choice([1.0,1.0,1.25,1.5]), is_mobile=mobile)
+        color_depth=24, device_scale=rng.choice([1.0,1.0,1.25,1.5]), is_mobile=mobile,
+        platform_version=platform_version, model=model,
+        canvas_noise=rng.choice([0.0, 0.0, rng.uniform(0.0001, 0.004)]),
+        audio_noise=rng.choice([0.0, 0.0, rng.uniform(0.00001, 0.0003)]))

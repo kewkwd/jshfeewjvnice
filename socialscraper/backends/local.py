@@ -1,9 +1,37 @@
+import json
 import logging
 from pathlib import Path
 from .base import BrowserBackend, SessionHandle, cleanup_steps
 from ..net.fingerprint import accept_language, chrome_major, desktop_user_agent, mobile_user_agent
 
 log = logging.getLogger(__name__)
+
+def _spoof_script(fp):
+    """Setzt je Identity Hardware-Kerne, Speicher, WebGL-Kennung, Canvas- und Audio-Rauschen (Init-Skript,
+    laeuft vor jedem Seiten-Skript). Additiv und stabil: gleiche Identity -> gleiches Ergebnis."""
+    cfg = {'hc': fp.hardware_concurrency, 'dm': fp.device_memory,
+           'glv': fp.webgl_vendor, 'glr': fp.webgl_renderer,
+           'cn': int(round(fp.canvas_noise * 100000)), 'an': fp.audio_noise}
+    return """
+(() => {
+  const c = %s;
+  const def = (o,p,v) => { try { Object.defineProperty(o,p,{get:()=>v,configurable:true}); } catch(e){} };
+  if (c.hc) def(navigator, 'hardwareConcurrency', c.hc);
+  if (c.dm) def(navigator, 'deviceMemory', c.dm);
+  const gl = (P) => { if (!P) return; const g = P.getParameter;
+    P.getParameter = function(p){ if(p===37445) return c.glv; if(p===37446) return c.glr; return g.apply(this,arguments); }; };
+  gl(window.WebGLRenderingContext && WebGLRenderingContext.prototype);
+  gl(window.WebGL2RenderingContext && WebGL2RenderingContext.prototype);
+  if (c.cn && window.HTMLCanvasElement) { const td = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function(){ try { const x=this.getContext('2d');
+      if (x && !this.__n){ this.__n=1; const d=x.getImageData(0,0,this.width,this.height);
+        for(let i=0;i<d.data.length;i+=4){ d.data[i]=(d.data[i]+(c.cn%%3))&255; } x.putImageData(d,0,0); } } catch(e){}
+      return td.apply(this,arguments); }; }
+  if (c.an && window.AnalyserNode) { const fd = AnalyserNode.prototype.getFloatFrequencyData;
+    AnalyserNode.prototype.getFloatFrequencyData = function(a){ fd.call(this,a);
+      for(let i=0;i<a.length;i++){ a[i]+= (c.an*(i%%7)); } }; }
+})();
+""" % json.dumps(cfg)
 
 class LocalBackend(BrowserBackend):
     name = "local"
@@ -36,10 +64,6 @@ class LocalBackend(BrowserBackend):
             from ..net.browserproxy import options
             browser_proxy, handle._proxy_bridge = options(proxy)
             fp = identity.fp
-            # Nichts wird per JavaScript ueberschrieben: Plattform, Grafikkarte, Kerne, Speicher, Plugins und
-            # navigator.webdriver (Patchright) bleiben die echten Werte des Chrome. Geaendert wird nur, was
-            # zum Profil gehoert (Zeitzone, Sprache/Accept-Language, Fenstergroesse) - alles ueber
-            # Chrome-Schalter oder die Emulation des Browsers. Keine Standortbehauptung oder -freigabe.
             extra = {}
             embedded = os.environ.get('SS_EMBED_BROWSER') == '1' and not headless
             viewport = fp.viewport
@@ -56,9 +80,6 @@ class LocalBackend(BrowserBackend):
                 version = self._installed_version(pw, browser_proxy)
                 ua_args = [f"--user-agent={mobile_user_agent(fp, version)}"]
             elif headless:
-                # Der Headless-Chrome nennt sich "HeadlessChrome" im User-Agent (Erkennungsmerkmal), auch in
-                # Service- und Shared-Workern. Der Schalter --user-agent deckt die Worker ab, der Browser-eigene
-                # Override der Seite haelt zusaetzlich die Client Hints (Marken, volle Version) vollstaendig.
                 try:
                     ua = desktop_user_agent(self._installed_version(pw, browser_proxy))
                 except ValueError:
@@ -80,6 +101,8 @@ class LocalBackend(BrowserBackend):
                       "--no-default-browser-check", f"--lang={fp.locale}",
                       f"--accept-lang={accept_language(fp)}", *ua_args,
                       *self._proxy_args(browser_proxy)])
+            # Geraetekennung je Identity VOR dem ersten goto setzen (Kerne, Speicher, GPU, Canvas, Audio).
+            handle._context.add_init_script(_spoof_script(fp))
             if fp.is_mobile:
                 self._emulate_mobile(handle._context, fp, version)
             self._apply_cookies(handle, platform)
@@ -111,8 +134,8 @@ class LocalBackend(BrowserBackend):
                 "fullVersionList": [{"brand": "Chromium", "version": str(version)},
                                     {"brand": "Google Chrome", "version": str(version)},
                                     {"brand": "Not A(Brand", "version": "99.0.0.0"}],
-                "platform": "Android", "platformVersion": "14.0.0", "architecture": "", "model": "SM-S911B",
-                "mobile": True}}
+                "platform": "Android", "platformVersion": fp.platform_version or "14.0.0",
+                "architecture": "", "model": fp.model or "SM-S911B", "mobile": True}}
         def apply(page):
             try:
                 context.new_cdp_session(page).send("Emulation.setUserAgentOverride", override)
