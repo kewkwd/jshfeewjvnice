@@ -24,10 +24,10 @@ class ArchetypenTest(unittest.TestCase):
     def test_zuweisung_ist_deterministisch(self):
         archetypen.zuweisen(self.db)
         with Store(self.db) as store:
-            vorher = store.db.execute('SELECT identity, alter, geschlecht, geraet FROM accounts ORDER BY id').fetchall()
+            vorher = store.db.execute('SELECT identity, "alter", geschlecht, geraet FROM accounts ORDER BY id').fetchall()
         archetypen.zuweisen(self.db, nur_ohne=False)
         with Store(self.db) as store:
-            nachher = store.db.execute('SELECT identity, alter, geschlecht, geraet FROM accounts ORDER BY id').fetchall()
+            nachher = store.db.execute('SELECT identity, "alter", geschlecht, geraet FROM accounts ORDER BY id').fetchall()
         self.assertEqual(vorher, nachher)
 
     def test_nur_ohne_ueberschreibt_nicht(self):
@@ -37,7 +37,7 @@ class ArchetypenTest(unittest.TestCase):
     def test_alter_hat_kern_und_auslauf(self):
         archetypen.zuweisen(self.db)
         with Store(self.db) as store:
-            zeilen = store.db.execute('SELECT alter FROM accounts').fetchall()
+            zeilen = store.db.execute('SELECT "alter" FROM accounts').fetchall()
         kerne = auslaeufe = 0
         for (alter,) in zeilen:
             passend = [d for d in archetypen.ARCHETYPEN.values()

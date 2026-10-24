@@ -126,7 +126,8 @@ def ensure_schema(db):
         vorhanden = {z[1] for z in db.execute('PRAGMA table_info(accounts)')}
         for name, typ in SPALTEN.items():
             if name not in vorhanden:
-                db.execute(f'ALTER TABLE accounts ADD COLUMN {name} {typ}')
+                # „alter“ ist in SQLite ein Schlüsselwort: Spaltennamen deshalb immer in Anführungszeichen.
+                db.execute(f'ALTER TABLE accounts ADD COLUMN "{name}" {typ}')
         _saat(db)
 
 
@@ -207,7 +208,7 @@ def zuweisen(db_path, platform='tiktok', *, nur_ohne=True, jetzt=None):
             eigenschaften = _ziehen(rng, haupt)
             neben = _neben(rng, haupt, list(ids))
             haupt_gewicht = rng.uniform(HAUPT_MIN, HAUPT_MAX)
-            db.execute('UPDATE accounts SET alter=?, geschlecht=?, geraet=?, verhalten_typ=?, stil=? WHERE id=?',
+            db.execute('UPDATE accounts SET "alter"=?, geschlecht=?, geraet=?, verhalten_typ=?, stil=? WHERE id=?',
                        (eigenschaften['alter'], eigenschaften['geschlecht'], eigenschaften['geraet'],
                         eigenschaften['verhalten_typ'], eigenschaften['stil'], konto['id']))
             db.execute('DELETE FROM account_archetypen WHERE account_id=?', (konto['id'],))
@@ -263,8 +264,8 @@ def alter_korb(alter):
 
 AUSDRUECKE = {
     'archetyp': "COALESCE(t.schluessel, 'kein')",
-    'alter': "CASE WHEN a.alter IS NULL THEN 'unbekannt' WHEN a.alter<18 THEN 'unter 18' "
-             "WHEN a.alter<25 THEN '18-24' WHEN a.alter<35 THEN '25-34' ELSE '35+' END",
+    'alter': "CASE WHEN a.\"alter\" IS NULL THEN 'unbekannt' WHEN a.\"alter\"<18 THEN 'unter 18' "
+             "WHEN a.\"alter\"<25 THEN '18-24' WHEN a.\"alter\"<35 THEN '25-34' ELSE '35+' END",
     'geschlecht': "COALESCE(a.geschlecht, 'unbekannt')",
     'geraet': "COALESCE(a.geraet, 'unbekannt')",
     'verhalten': "COALESCE(a.verhalten_typ, 'unbekannt')",
