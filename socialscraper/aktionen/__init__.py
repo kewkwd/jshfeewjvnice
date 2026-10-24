@@ -386,3 +386,88 @@ class _Runtime:
     def close(self):
         from ..cli import shutdown_runtime
         shutdown_runtime(self._backend, getattr(self, '_sessions', None))
+
+def kandidaten(db, platform, *, exclude=(), now=None):
+    """Konto-IDs, die für eine Rotation taugen (in Rotation, angemeldet, bereit, nicht ausgeschlossen)."""
+    jetzt = now or repo.now()
+    root = rotation.root_of(db)
+    ergebnis = []
+    for konto in repo.list_accounts(db, platform):
+        if not konto.get('rotation_enabled', 1) or konto['id'] in exclude:
+            continue
+        if rotation.account_state(konto, jetzt, root)['state'] == 'bereit':
+            ergebnis.append(konto['id'])
+    return ergebnis
+
+
+def enqueue_fanout(db, platform, art, ziel_uid, anzahl, *, video_uid=None, eltern_id=None,
+                   text=None, grund=None, sterne=None, pool=None, welle=True, rng=None, now=None):
+    """Reiht `anzahl` Aktionen auf EIN Ziel ein, jede von einem zufällig gewählten, DISTINKTEN Konto.
+
+    Behebt den Rotations-Kollaps: ohne Konto-ID wäre die Idempotenz für alle Likes auf dasselbe Ziel
+    gleich und `INSERT OR IGNORE` behielte nur eine Aktion. `pool` grenzt die Auswahl ein (Rollen).
+    Obergrenze = Zahl der verfügbaren Konten (ein Ziel kann je Konto nur einmal bearbeitet werden).
+    `welle=True` setzt direkt die Zwei-Wellen-Kurve – sonst wären alle Aktionen sofort fällig.
+    """
+    if isinstance(anzahl, bool) or not isinstance(anzahl, int) or anzahl < 1:
+        raise ValueError('Die Anzahl muss eine positive ganze Zahl sein.')
+    rng = rng or random.Random()
+    konten = list(pool) if pool is not None else kandidaten(db, platform, now=now)
+    if not konten:
+        return 0
+    rng.shuffle(konten)
+    neu = 0
+    for konto_id in konten[:anzahl]:
+        if enqueue(db, platform, art, ziel_uid, account_id=konto_id, video_uid=video_uid,
+                   eltern_id=eltern_id, text=text, grund=grund, sterne=sterne, now=now):
+            neu += 1
+    if welle and neu:
+        plane_welle(db, ziel_uid, rng=rng, now=now)
+    return neu
+
+
+def plane_welle(db, ziel_uid, *, anteil_erste=0.4, schub=(120, 2400), nach=(7200, 172800),
+                rng=None, now=None):
+    """Setzt `faellig_am` der offenen Aktionen EINES Ziels als Zwei-Wellen-Kurve.
+
+    Erste Welle (Anteil, Gauss im Schub-Fenster 2–40 min) fällt früh, die zweite (log-verteilt) später
+    (2 h–48 h). Die Zeiten liegen im Aktivitätsfenster des jeweiligen Kontos. Nur `status='offen'`.
+    """
+    if not 0 <= anteil_erste <= 1:
+        raise ValueError('Der Anteil der ersten Welle muss zwischen 0 und 1 liegen.')
+    rng = rng or random.Random()
+    jetzt = now or repo.now()
+    zeilen = db.execute(
+        "SELECT a.id, k.fenster_von, k.fenster_bis FROM aktionen a "
+        "LEFT JOIN accounts k ON k.id=a.account_id "
+        "WHERE a.ziel_uid=? AND a.status='offen' ORDER BY a.id", (str(ziel_uid),)).fetchall()
+    if not zeilen:
+        return 0
+    rng.shuffle(zeilen)
+    grenze = max(1, int(round(len(zeilen) * anteil_erste))) if len(zeilen) > 1 else len(zeilen)
+    for index, (aktion_id, von, bis) in enumerate(zeilen):
+        if index < grenze:
+            mitte, breite = sum(schub) / 2, max(1.0, (schub[1] - schub[0]) / 6)
+            sekunden = min(max(rng.gauss(mitte, breite), schub[0]), schub[1])
+        else:
+            sekunden = nach[0] * (nach[1] / nach[0]) ** rng.random()
+        faellig = _naechste_fensterzeit(jetzt + datetime.timedelta(seconds=sekunden), von, bis, rng)
+        db.execute('UPDATE aktionen SET faellig_am=? WHERE id=?', (repo.iso(faellig), aktion_id))
+    db.commit()
+    return len(zeilen)
+
+
+def _naechste_fensterzeit(zeit, von, bis, rng):
+    """Nächster Zeitpunkt ab `zeit`, dessen Ortszeit-Stunde im Aktivitätsfenster [von, bis) liegt."""
+    if von is None or bis is None or von == bis:
+        return zeit
+    def drin(stunde):
+        return von <= stunde < bis if von <= bis else (stunde >= von or stunde < bis)
+    lokal = zeit.astimezone()
+    if drin(lokal.hour):
+        return zeit
+    for _ in range(48):
+        lokal = (lokal + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        if drin(lokal.hour):
+            return lokal + datetime.timedelta(minutes=rng.randint(0, 55))
+    return zeit

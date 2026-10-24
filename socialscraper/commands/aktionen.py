@@ -14,6 +14,8 @@ def add_arguments(p):
     neu.add_argument('--eltern', metavar='comment_id')
     neu.add_argument('--text'); neu.add_argument('--grund'); neu.add_argument('--sterne', type=int)
     neu.add_argument('--konto', type=int, metavar='ID')
+    neu.add_argument('--anzahl', type=int, default=1, help='so viele distinkte Konten einreihen')
+    neu.add_argument('--welle', action='store_true', help='Zwei-Wellen-Kurve setzen')
     was.add_parser('liste', help='offene Aktionen zeigen')
     start = was.add_parser('start', help='Aktionen abarbeiten')
     start.add_argument('--anzahl', type=int, default=50)
@@ -30,10 +32,18 @@ def run(args, cfg):
             neu = 0
             for ziel in ziele:
                 voll = ziel if ':' in ziel else f'{args.plattform}:{ziel}'
-                if aktionen.enqueue(db, args.plattform, args.art, voll, account_id=args.konto,
-                                    video_uid=args.video, eltern_id=args.eltern, text=args.text,
-                                    grund=args.grund, sterne=args.sterne):
-                    neu += 1
+                if args.anzahl > 1 and args.konto is None:
+                    neu += aktionen.enqueue_fanout(db, args.plattform, args.art, voll, args.anzahl,
+                                                   video_uid=args.video, eltern_id=args.eltern,
+                                                   text=args.text, grund=args.grund, sterne=args.sterne,
+                                                   welle=args.welle)
+                else:
+                    if aktionen.enqueue(db, args.plattform, args.art, voll, account_id=args.konto,
+                                        video_uid=args.video, eltern_id=args.eltern, text=args.text,
+                                        grund=args.grund, sterne=args.sterne):
+                        neu += 1
+                    if args.welle:
+                        aktionen.plane_welle(db, voll)
             print(f'{neu} Aktion(en) eingereiht (von {len(ziele)}).')
             return 0
         if args.was == 'liste':
